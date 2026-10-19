@@ -770,6 +770,7 @@ function openChat(id) {
     images: [],
     controls: undefined,
     questions: [],
+    interactions: [],
     questionTimer: undefined,
     features: undefined,
     seen: new Set(),
@@ -1233,37 +1234,75 @@ function renderQuestionDock() {
   if (dock === null) return;
   const current = state.current;
   const active = current?.questions ?? [];
-  if (active.length === 0) {
-    dock.replaceChildren();
+  const interactions = current?.interactions ?? [];
+  const continued = active.filter((item) => item.state === 'continued');
+  const openQuestions = interactions.filter((item) => item.type === 'question');
+  const approvals = interactions.filter((item) => item.type === 'approval');
+  const answerable = continued.length + openQuestions.length + approvals.length;
+  if (answerable === 0) {
+    if (active.length === 0) {
+      dock.replaceChildren();
+      return;
+    }
+    const waiting = el('div', 'question-banner waiting');
+    waiting.innerHTML = `${ICONS.question}<span>有 ${active.length} 个问题等待工具结束</span>`;
+    dock.replaceChildren(waiting);
     return;
   }
-  const answerable = active.filter((item) => item.state === 'continued');
-  if (answerable.length > 0) {
-    const button = el('button', 'question-banner');
-    button.dataset.questionAction = 'open';
-    button.innerHTML = `${ICONS.question}<span>有 ${answerable.length} 个问题待回答</span><span class="pill run">回答</span>`;
-    dock.replaceChildren(button);
-    return;
+  const parts = [];
+  if (approvals.length > 0) parts.push(`${approvals.length} 个审批`);
+  if (openQuestions.length > 0) parts.push(`${openQuestions.length} 个提问`);
+  if (continued.length > 0) parts.push(`${continued.length} 个待回答`);
+  const button = el('button', 'question-banner');
+  button.dataset.questionAction = 'open';
+  button.innerHTML = `${ICONS.question}<span>${parts.join(' · ')}</span><span class="pill run">处理</span>`;
+  dock.replaceChildren(button);
+}
+
+/**
+ * 把手机端的回答通过会话 WebSocket 发回 Host。
+ * @param {object} message
+ * @returns {boolean}
+ */
+function sendInteraction(message) {
+  const socket = state.current?.source;
+  if (socket === undefined || socket.readyState !== 1) return false;
+  try {
+    socket.send(JSON.stringify(message));
+    return true;
+  } catch {
+    return false;
   }
-  const waiting = el('div', 'question-banner waiting');
-  waiting.innerHTML = `${ICONS.question}<span>有 ${active.length} 个问题等待工具结束</span>`;
-  dock.replaceChildren(waiting);
+}
+
+function dropInteraction(requestId) {
+  const current = state.current;
+  if (current === undefined) return;
+  current.interactions = (current.interactions ?? []).filter((item) => item.requestId !== requestId);
+  renderQuestionDock();
 }
 
 function openQuestionModal() {
   const current = state.current;
   if (current === undefined) return;
-  const call = (current.questions ?? []).find((item) => item.state === 'continued');
+  const approval = (current.interactions ?? []).find((item) => item.type === 'approval');
+  if (approval !== undefined) {
+    openApprovalModal(approval);
+    return;
+  }
+  const openQuestion = (current.interactions ?? []).find((item) => item.type === 'question');
+  const call = openQuestion ?? (current.questions ?? []).find((item) => item.state === 'continued');
   if (call === undefined) {
     toast('当前没有可回答的问题');
     return;
   }
   const questions = Array.isArray(call.questions) ? call.questions : [];
+  const isOpen = typeof call.requestId === 'string';
   const mask = el('div', 'modal-mask');
   const modal = el('div', 'modal sheet');
   modal.innerHTML = `
     <div class="sheet-head">
-      <h3>回答提问</h3>
+      <h3>${isOpen ? '工具正在等待回答' : '回答提问'}</h3>
       <button class="iconbtn" id="question-close" title="关闭">${ICONS.close}</button>
     </div>
     <div class="sheet-scroll" id="question-form"></div>
@@ -1324,23 +1363,86 @@ function openQuestionModal() {
     submit.disabled = true;
     submit.textContent = '提交中…';
     try {
-      const result = await api(`/api/sessions/${encodeURIComponent(current.id)}/questions/${encodeURIComponent(call.callId)}/answer`, {
-        method: 'POST',
-        body: JSON.stringify({ answers }),
-      });
-      if (result.accepted === false) {
-        toast('问题已经不可回答');
-      } else {
+      if (isOpen) {
+        const sent = sendInteraction({ kind: 'question-answer', requestId: call.requestId, answers });
+        if (!sent) {
+          await api(`/api/sessions/${encodeURIComponent(current.id)}/interactions/${encodeURIComponent(call.requestId)}/answer`, {
+            method: 'POST',
+            body: JSON.stringify({ answers }),
+          });
+        }
+        dropInteraction(call.requestId);
         toast('已提交回答', 'ok');
+      } else {
+        const result = await api(`/api/sessions/${encodeURIComponent(current.id)}/questions/${encodeURIComponent(call.callId)}/answer`, {
+          method: 'POST',
+          body: JSON.stringify({ answers }),
+        });
+        if (result.accepted === false) {
+          toast('问题已经不可回答');
+        } else {
+          toast('已提交回答', 'ok');
+        }
+        await loadQuestions(current.id);
       }
       close();
-      await loadQuestions(current.id);
     } catch (error) {
       submit.disabled = false;
       submit.textContent = '提交回答';
       toast(error.message ?? String(error));
     }
   });
+}
+
+/**
+ * 工具审批：允许一次 / 拒绝。
+ * @param {object} interaction
+ */
+function openApprovalModal(interaction) {
+  const current = state.current;
+  if (current === undefined) return;
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal');
+  const reason = interaction.displayReason ?? interaction.reason ?? '';
+  modal.innerHTML = `
+    <h3>工具审批</h3>
+    <div class="question-text">${escapeHtml(interaction.toolName ?? '工具')}</div>
+    ${reason ? `<div class="question-detail">${escapeHtml(reason).replaceAll('\n', '<br>')}</div>` : ''}
+    <div class="sheet-hint">允许后只放行这一次调用；拒绝会以 fail-closed 结束本次请求。</div>
+    <div class="modal-actions">
+      <button class="btn" id="approval-reject">拒绝</button>
+      <button class="btn primary" id="approval-allow">允许一次</button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  const answer = async (outcome) => {
+    const allow = modal.querySelector('#approval-allow');
+    const reject = modal.querySelector('#approval-reject');
+    allow.disabled = true;
+    reject.disabled = true;
+    try {
+      const sent = sendInteraction({ kind: 'approval-answer', requestId: interaction.requestId, outcome });
+      if (!sent) {
+        await api(`/api/sessions/${encodeURIComponent(current.id)}/interactions/${encodeURIComponent(interaction.requestId)}/answer`, {
+          method: 'POST',
+          body: JSON.stringify({ outcome }),
+        });
+      }
+      dropInteraction(interaction.requestId);
+      toast(outcome === 'allowed-once' ? '已允许一次' : '已拒绝', 'ok');
+      close();
+    } catch (error) {
+      allow.disabled = false;
+      reject.disabled = false;
+      toast(error.message ?? String(error));
+    }
+  };
+  modal.querySelector('#approval-allow').addEventListener('click', () => void answer('allowed-once'));
+  modal.querySelector('#approval-reject').addEventListener('click', () => void answer('rejected'));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1514,6 +1616,22 @@ function connectStream(id) {
         break;
       case 'frame':
         handleFrame(message.frame);
+        break;
+      case 'question-request': {
+        current.interactions = current.interactions.filter((item) => item.requestId !== message.requestId);
+        current.interactions.push({ ...message, type: 'question' });
+        renderQuestionDock();
+        break;
+      }
+      case 'approval-request': {
+        current.interactions = current.interactions.filter((item) => item.requestId !== message.requestId);
+        current.interactions.push({ ...message, type: 'approval' });
+        renderQuestionDock();
+        break;
+      }
+      case 'interaction-closed':
+        current.interactions = current.interactions.filter((item) => item.requestId !== message.requestId);
+        renderQuestionDock();
         break;
       case 'failed':
         toast(message.error ?? '会话流中断');
