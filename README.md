@@ -10,7 +10,7 @@
 - **会话设置**：手机里切换模型与思考等级、选择权限预置、插入 `/技能` 引用；设置入口在输入框上方的滑杆按钮。
 - **图片消息**：从相册选择最多 4 张图片随消息发送；Markdown 图片和表格可在聊天流里正常渲染。
 - **提问与审批**：手机在线时接管 `user-questions/request` 与 `approval/request` waterfall；前台阻塞提问可直接作答，工具审批可选择「允许一次 / 拒绝」。continued 提问仍从投影显示。手机离线时自动回落到桌面 answerer。
-- **三种隧道**：`cloudflared`（Quick Tunnel，无浏览器拦截页）、`localtunnel`、`localhost.run`；也可以填自定义命令或固定的 `publicUrl`。
+- **多种隧道**：`cloudflared`（Quick Tunnel，无浏览器拦截页）、`localtunnel`、`localhost.run`，或 **自有服务器 SSH 反向转发**（服务器只需 Node.js，无需改 sshd）；也可以填自定义命令或固定的 `publicUrl`。
 - **扫码即用**：桌面面板生成带令牌的二维码，手机相机一扫就打开。
 - **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
 - **轻量依赖**：一个 `ws`（WebSocket 服务端），二维码编码器随包内嵌；宿主和移动页面其余部分都是原生 ESM。
@@ -41,12 +41,46 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | --- | --- | --- |
 | `port` | `8790` | 移动端监听端口；被占用时自动向后找 10 个端口。`0` 表示随机端口。 |
 | `lan` | `false`（本仓库 patch 里为 `true`） | 是否绑定 `0.0.0.0` 允许局域网访问；关掉时只绑 `127.0.0.1`，但隧道仍可用。 |
-| `tunnel` | `auto` | `auto` / `cloudflared` / `localtunnel` / `localhost.run` / `custom` / `off`。 |
+| `tunnel` | `auto` | `auto` / `cloudflared` / `localtunnel` / `localhost.run` / `ssh` / `custom` / `off`。 |
 | `autoStart` | `true` | Host 启动后是否自动拉起隧道。 |
 | `publicUrl` | 无 | 已有反向代理或固定域名时直接使用它，不再起隧道进程。 |
 | `cloudflaredPath` | 无 | 指定 cloudflared 可执行文件；留空时优先用随包二进制，其次 PATH。 |
 | `customCommand` | 无 | `tunnel: custom` 时执行；`%PORT%` 会被替换成本地端口，输出里第一个公网 URL 视为就绪。 |
+| `sshHost` | 无 | 自有服务器地址；设置后可将 `tunnel` 设为 `ssh`。 |
+| `sshUser` | `root` | SSH 用户名；请使用免密公钥登录。 |
+| `sshPort` | `22` | SSH 端口。 |
+| `sshKeyPath` | 无 | SSH 私钥路径；支持 `~/...`。 |
+| `sshRemotePort` | `8790` | SSH 在服务器 `127.0.0.1` 上绑定的反向转发端口。 |
+| `sshExposePort` | `80` | 服务器上 Node TCP 代理监听的公网端口；需在防火墙/安全组放行。 |
+| `sshExposeHost` | `0.0.0.0` | 服务器 TCP 代理绑定地址；若用 Nginx/Caddy 反代可设为 `127.0.0.1`。 |
+| `sshPublicUrl` | 无 | 自有域名/HTTPS 入口；设置后二维码使用它，而不是 `http://<sshHost>:<sshExposePort>`。 |
 | `token` | 自动生成 | 固定访问令牌；留空时使用 `~/.dsh/pocket/state.json` 里持久化的令牌。 |
+
+### 用自有服务器转发
+
+`tunnel: ssh` 不要求服务器开启 `GatewayPorts`，也不改 `sshd`：
+
+1. SSH 建立 `-R 127.0.0.1:sshRemotePort:127.0.0.1:<本地端口>`。
+2. SSH 在服务器上启动一个很小的 Node TCP 代理，监听 `sshExposeHost:sshExposePort`，转发到 `127.0.0.1:sshRemotePort`。
+3. 手机访问 `sshPublicUrl`，未设置时访问 `http://<sshHost>[:sshExposePort]`。
+
+示例：
+
+```yaml
+tunnel: ssh
+sshHost: 106.55.38.48
+sshUser: root
+sshKeyPath: ~/.ssh/id_ed25519
+sshPort: 22
+sshRemotePort: 8790
+sshExposePort: 80
+# 可选：有域名/HTTPS 反代时填写
+# sshPublicUrl: https://pocket.example.com
+```
+
+要求：服务器能免密 SSH 登录且装有 Node.js；`sshExposePort` 在服务器防火墙和云安全组中放行。
+
+> 直接监听公网 80 时是 **HTTP**，令牌和会话内容会以明文经过网络。生产使用建议让 `sshExposeHost: 127.0.0.1`，再在服务器上用 Nginx/Caddy 做 HTTPS 反代，并把 `sshPublicUrl` 指到 HTTPS 地址。
 
 状态文件只保存令牌：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
 
