@@ -62,6 +62,9 @@ if (!alreadyRegistered()) {
         addresses: '访问地址',
         local: '本机',
         lan: '局域网',
+        lanIp: '局域网 IP',
+        lanAuto: '自动（第一个可用）',
+        lanVirtual: '虚拟网卡',
         public: '公网',
         noLan: '未发现局域网地址',
         copy: '复制',
@@ -113,6 +116,9 @@ if (!alreadyRegistered()) {
         addresses: 'Access URLs',
         local: 'Local',
         lan: 'LAN',
+        lanIp: 'LAN IP',
+        lanAuto: 'Auto (first available)',
+        lanVirtual: 'virtual adapter',
         public: 'Public',
         noLan: 'No LAN address found',
         copy: 'Copy',
@@ -169,6 +175,9 @@ if (!alreadyRegistered()) {
 .dsh-pk-select,.dsh-pk-input{width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;outline:none}
 .dsh-pk-select:focus,.dsh-pk-input:focus{border-color:var(--dsw-alias-border-l3)}
 .dsh-pk-input::placeholder{color:var(--dsw-alias-label-caption)}
+.dsh-pk-lanpick{display:flex;align-items:center;gap:8px;margin:0 0 10px;min-width:0}
+.dsh-pk-lanpick-label{flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.dsh-pk-lanpick .dsh-pk-select{width:auto;flex:1;min-width:0}
 .dsh-pk-url{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);margin-bottom:8px;min-width:0}
 .dsh-pk-url-label{flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary);width:40px}
 .dsh-pk-url-text{flex:1;min-width:0;font-family:var(--dsw-font-mono,ui-monospace,Consolas,monospace);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dsw-alias-label-secondary)}
@@ -346,6 +355,8 @@ if (!alreadyRegistered()) {
         const tunnel = status.tunnel ?? { state: 'off', log: [] };
         const urls = status.server?.urls ?? { local: '', lan: [] };
         const lan = Array.isArray(urls.lan) ? urls.lan : [];
+        const lanOptions = Array.isArray(urls.lanOptions) ? urls.lanOptions : [];
+        const lanSelected = typeof urls.lanSelected === 'string' ? urls.lanSelected : '';
         const tone = statusTone(tunnel);
         const isStarting = tunnel.state === 'starting';
         const isOnline = tunnel.state === 'online';
@@ -448,6 +459,22 @@ if (!alreadyRegistered()) {
               ),
               h(UrlRow, { label: LANG.local, url: urls.local }),
               isOnline ? h(UrlRow, { label: LANG.public, url: urls.publicUrl }) : null,
+              lanOptions.length > 0
+                ? h('div', { className: 'dsh-pk-lanpick' },
+                  h('span', { className: 'dsh-pk-lanpick-label' }, LANG.lanIp),
+                  h('select', {
+                    className: 'dsh-pk-select',
+                    value: lanSelected,
+                    disabled: busy !== '',
+                    onChange: (event) => void action('set-lan', { address: event.target.value }),
+                  },
+                  h('option', { value: '' }, LANG.lanAuto),
+                  ...lanOptions.map((option) => h('option', {
+                    key: option.address,
+                    value: option.address,
+                  }, `${option.name}${option.virtual ? ` · ${LANG.lanVirtual}` : ''} · ${option.address}`))),
+                )
+                : null,
               lan.length === 0
                 ? h('div', { className: 'dsh-pk-empty' }, LANG.noLan)
                 : lan.map((url, index) => h(UrlRow, { key: `${url}-${index}`, label: LANG.lan, url })),

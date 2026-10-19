@@ -12,6 +12,7 @@
 - **提问与审批**：手机在线时接管 `user-questions/request` 与 `approval/request` waterfall；前台阻塞提问可直接作答，工具审批可选择「允许一次 / 拒绝」。continued 提问仍从投影显示。手机离线时自动回落到桌面 answerer。
 - **多种隧道**：`cloudflared`（Quick Tunnel，无浏览器拦截页）、`localtunnel`、`localhost.run`，或 **自有服务器 SSH 反向转发**（服务器只需 Node.js，无需改 sshd）；也可以填自定义命令或固定的 `publicUrl`。
 - **扫码即用**：桌面面板生成带令牌的二维码，手机相机一扫就打开。
+- **局域网 IP 切换**：面板「访问地址」里用下拉框选择要用的网卡/IP；二维码和分享链接优先使用选中的地址，选择会持久化。无公网隧道时二维码直接指向该局域网 IP。
 - **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
 - **轻量依赖**：一个 `ws`（WebSocket 服务端），二维码编码器随包内嵌；宿主和移动页面其余部分都是原生 ESM。
 
@@ -84,7 +85,7 @@ sshExposePort: 80
 
 > 直接监听公网 80 时是 **HTTP**，令牌和会话内容会以明文经过网络。生产使用建议让 `sshExposeHost: 127.0.0.1`，再在服务器上用 Nginx/Caddy 做 HTTPS 反代，并把 `sshPublicUrl` 指到 HTTPS 地址。
 
-状态文件保存访问令牌和面板里选择的公网入口：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
+状态文件保存访问令牌、创建时间、面板选中的局域网 IP 和公网入口：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
 
 桌面 **Pocket** 面板的「公网入口」可以在 **Cloudflared（默认）** 和 **自有服务器** 之间切换；填入服务器 IP/域名后点「切换」即可，选择会写入状态文件，DSH 重启后保留。
 
@@ -140,7 +141,7 @@ sshExposePort: 80
 | GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件。 |
 | GET | `/api/sessions/:id/file?path=preview/x.png` | 读取会话工作区内的图片，供 Markdown 相对路径图片使用。 |
 
-桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`rotate-token`、`restart`。
+桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`restart`。
 
 模型工具 `pocket_share` 会把当前手机入口地址交给模型，方便用户直接要链接。
 
