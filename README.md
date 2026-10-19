@@ -6,6 +6,9 @@
 - **与桌面一致的工作区视图**：按 `workspaceController` 的工作区顺序和会话归属分组；默认隐藏已归档会话，顶部一键切换显示。
 - **流式输出**：WebSocket 跟进 `sessionController.follow`，助手文本、思考过程、工具调用与结果实时出现。历史快照分批推送，手机边收边渲染。
 - **反向控制**：发送提示词（空闲时立即执行，运行中进入队列）、停止当前回合、新建会话（自动挂到对应工作区）。
+- **会话设置**：手机里切换模型与思考等级、选择权限预置、插入 `/技能` 引用；设置入口在输入框上方的滑杆按钮。
+- **图片消息**：从相册选择最多 4 张图片随消息发送；Markdown 图片和表格可在聊天流里正常渲染。
+- **提问回答**：`userQuestions` 投影里的 continued 提问会出现在输入框上方，可直接选择/输入回答并提交。
 - **三种隧道**：`cloudflared`（Quick Tunnel，无浏览器拦截页）、`localtunnel`、`localhost.run`；也可以填自定义命令或固定的 `publicUrl`。
 - **扫码即用**：桌面面板生成带令牌的二维码，手机相机一扫就打开。
 - **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
@@ -87,8 +90,13 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | WS | `/ws/session/:id?token=...` | 手机端使用的会话流：`hello`、`snapshot-meta` / `snapshot-batch` / `snapshot-end`、`frame`。 |
 | GET | `/api/sessions/:id/follow` | SSE 版本，保留给 curl/调试；注意部分隧道会缓冲 SSE 响应。 |
 | GET | `/api/sessions/:id/page?throughSeq=&beforeSeq=` | 历史翻页。 |
-| POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "queue" \| "steer" }`。 |
+| POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "queue" \| "steer", "images": [{ "mediaType", "data", "name" }] }`。 |
 | POST | `/api/sessions/:id/cancel` | 停止当前回合。 |
+| GET | `/api/sessions/:id/controls` | 模型目录/当前选择、权限目录/当前预设、用户可见技能。 |
+| POST | `/api/sessions/:id/model` | `{ "provider", "model", "reasoningEffort" }`。 |
+| POST | `/api/sessions/:id/permissions` | `{ "preset": "..." }`。 |
+| GET | `/api/sessions/:id/questions` | `userQuestions` 投影的 active/settled 提问。 |
+| POST | `/api/sessions/:id/questions/:callId/answer` | `{ "answers": [{ "id", "selected", "custom" }] }`，回答 continued 提问。 |
 | GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件。 |
 | GET | `/api/sessions/:id/file?path=preview/x.png` | 读取会话工作区内的图片，供 Markdown 相对路径图片使用。 |
 
@@ -98,7 +106,8 @@ D:\DeepseekHarnessProjects\dsh-pocket
 
 ## 已知限制
 
-- **审批与提问**：工具审批、`ask_user_question` 目前仍需在桌面端回答；手机端会看到会话保持运行。
+- **审批与前台提问**：工具审批仍需在桌面端回答；`ask_user_question` 的 continued 状态可以在手机回答，仍处于前台等待（open）的提问需要等工具超时/结束或回桌面回答。
+- **图片输入**：需要当前模型声明支持图片输入；手机端最多 4 张、单张 18 MB。
 - **子代理会话**：移动列表只列普通会话，子代理（`origin: subagent`）不单独展示。
 - **模型选择 / 预设切换**：沿用会话现有设置，手机端不提供切换。
 - **图片上传**：可以查看会话里的图片，暂不支持从手机发图。

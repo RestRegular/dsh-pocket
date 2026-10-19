@@ -161,6 +161,10 @@ const ICONS = {
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5h6l-.8 5.2 3.3 3.3H6.5l3.3-3.3L9 4.5Z"/><path d="M12 13v7"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
   chevronDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 9 7 7 7-7"/></svg>',
+  image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 4.5-4.5 3.5 3.5 2.5-2.5L19 17"/></svg>',
+  sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="7" cy="17" r="2"/></svg>',
+  question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
   dot: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>',
 };
 
@@ -740,6 +744,7 @@ function closeChat() {
   state.pendingTexts = [];
   if (current !== undefined) {
     clearTimeout(current.reconnectTimer);
+    clearInterval(current.questionTimer);
     if (current.source !== undefined) {
       try {
         current.source.close();
@@ -762,6 +767,11 @@ function openChat(id) {
     messages: [],
     toolResults: new Map(),
     openTools: new Set(),
+    images: [],
+    controls: undefined,
+    questions: [],
+    questionTimer: undefined,
+    features: undefined,
     seen: new Set(),
     minSeq: undefined,
     transient: undefined,
@@ -776,6 +786,9 @@ function openChat(id) {
   };
   renderChatShell();
   void loadChatMeta(id);
+  void loadCapabilities(id);
+  void loadControls(id);
+  startQuestionPolling(id);
   connectStream(id);
 }
 
@@ -810,10 +823,20 @@ function renderChatShell() {
       </div>
     </div>
     <div class="composer">
+      <div class="question-dock" id="question-dock"></div>
       <div class="composer-box">
-        <textarea id="composer" rows="1" placeholder="发消息给 DSH…"></textarea>
-        <button class="stop" id="stop" title="停止" style="display:none">${ICONS.stop}</button>
-        <button class="send" id="send" title="发送" disabled>${ICONS.send}</button>
+        <div class="composer-tools">
+          <button class="toolbtn" id="attach-image" title="添加图片">${ICONS.image}</button>
+          <button class="toolbtn" id="open-controls" title="模型 / 权限 / 技能">${ICONS.sliders}</button>
+          <span class="composer-chip" id="model-chip" style="display:none"></span>
+        </div>
+        <div class="image-strip" id="image-strip" hidden></div>
+        <div class="composer-row">
+          <textarea id="composer" rows="1" placeholder="发消息给 DSH…"></textarea>
+          <button class="stop" id="stop" title="停止" style="display:none">${ICONS.stop}</button>
+          <button class="send" id="send" title="发送" disabled>${ICONS.send}</button>
+        </div>
+        <input type="file" id="image-input" accept="image/*" multiple hidden>
       </div>
     </div>`;
   document.querySelector('#chat-back').addEventListener('click', () => {
@@ -844,6 +867,28 @@ function renderChatShell() {
   });
   document.querySelector('#send').addEventListener('click', () => void sendMessage());
   document.querySelector('#stop').addEventListener('click', () => void stopTurn());
+  document.querySelector('#attach-image').addEventListener('click', () => {
+    document.querySelector('#image-input')?.click();
+  });
+  document.querySelector('#image-input').addEventListener('change', (event) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    void addImages(files);
+  });
+  document.querySelector('#open-controls').addEventListener('click', () => void openControlsSheet());
+  document.querySelector('#model-chip').addEventListener('click', () => void openControlsSheet());
+  document.querySelector('#question-dock').addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-question-action]');
+    if (button !== null && button !== undefined) openQuestionModal();
+  });
+  document.querySelector('#image-strip').addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-image-index]');
+    if (button === null || button === undefined) return;
+    const index = Number(button.dataset.imageIndex);
+    state.current?.images.splice(index, 1);
+    renderImageStrip();
+    updateSendState();
+  });
   document.querySelector('#chat-scroll').addEventListener('scroll', () => {
     const scroll = document.querySelector('#chat-scroll');
     if (state.current !== undefined) {
@@ -860,13 +905,519 @@ function autosize(textarea) {
   textarea.style.height = `${Math.min(textarea.scrollHeight, 132)}px`;
 }
 
+/* -------------------------------------------------------------------------- */
+/* 会话控件：模型 / 权限 / 技能 / 图片 / 问题                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 读取当前 Host 是否支持新控件（模型/权限/技能/图片/问题）。
+ * 旧版插件没有 features 字段时隐藏这些入口，避免点了报 404。
+ * @param {string} id
+ * @returns {Promise<void>}
+ */
+async function loadCapabilities(id) {
+  try {
+    const status = await api('/api/status');
+    const current = state.current;
+    if (current?.id !== id) return;
+    current.features = status.features ?? {};
+    const tools = document.querySelector('.composer-tools');
+    if (tools !== null) tools.style.display = status.features?.controls === true ? 'flex' : 'none';
+    if (status.features?.controls === true) updateModelChip();
+    if (status.features?.questions !== true) {
+      clearInterval(current.questionTimer);
+      current.questions = [];
+      renderQuestionDock();
+    }
+  } catch {
+    /* 状态读取失败时保持旧版简洁输入框 */
+  }
+}
+
+/**
+ * 读取会话控件数据（模型目录、权限预置、可见技能）。
+ * @param {string} id
+ * @returns {Promise<void>}
+ */
+async function loadControls(id) {
+  try {
+    const payload = await api(`/api/sessions/${encodeURIComponent(id)}/controls`);
+    const current = state.current;
+    if (current?.id !== id) return;
+    current.controls = payload;
+    updateModelChip();
+  } catch {
+    /* 控件是可选的，不影响聊天 */
+  }
+}
+
+/**
+ * 把当前模型/思考等级显示在输入框上方。
+ */
+function updateModelChip() {
+  const chip = document.querySelector('#model-chip');
+  if (chip === null) return;
+  const current = state.current;
+  const selection = current?.controls?.model?.selection;
+  if (selection === undefined || selection === null) {
+    chip.textContent = '';
+    chip.style.display = 'none';
+    return;
+  }
+  const catalog = current?.controls?.model?.catalog;
+  let label = selection.model;
+  for (const group of catalog?.groups ?? []) {
+    const model = group.models.find((item) => item.id === selection.model);
+    if (model !== undefined) {
+      label = model.name;
+      break;
+    }
+  }
+  if (typeof selection.reasoningEffort === 'string' && selection.reasoningEffort.length > 0) {
+    const model = (catalog?.groups ?? []).flatMap((group) => group.models).find((item) => item.id === selection.model);
+    const effort = model?.reasoning?.efforts?.find((item) => item.id === selection.reasoningEffort);
+    label += ` · ${effort?.name ?? selection.reasoningEffort}`;
+  }
+  chip.textContent = label;
+  chip.title = `${selection.provider}/${selection.model}`;
+  chip.style.display = '';
+}
+
+/**
+ * 在光标处插入文本（技能选择用）。
+ * @param {string} text
+ */
+function insertComposerText(text) {
+  const textarea = document.querySelector('#composer');
+  if (textarea === null) return;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  textarea.value = `${textarea.value.slice(0, start)}${text}${textarea.value.slice(end)}`;
+  const cursor = start + text.length;
+  textarea.setSelectionRange(cursor, cursor);
+  textarea.focus();
+  autosize(textarea);
+  updateSendState();
+}
+
+/**
+ * 打开模型 / 权限 / 技能设置面板。
+ * @returns {Promise<void>}
+ */
+async function openControlsSheet() {
+  const current = state.current;
+  if (current === undefined) return;
+  if (current.features?.controls !== true) {
+    toast('重启 DSH 后可修改模型、权限与技能');
+    return;
+  }
+  if (current.controls === undefined) await loadControls(current.id);
+  const controls = current.controls;
+  if (controls === undefined) {
+    toast('会话设置读取失败');
+    return;
+  }
+
+  const catalog = controls.model?.catalog;
+  const initial = controls.model?.selection ?? catalog?.default ?? undefined;
+  const choices = [];
+  let activeIndex = -1;
+  for (const group of catalog?.groups ?? []) {
+    for (const model of group.models) {
+      choices.push({ provider: group.id, model, groupName: group.name });
+      if (initial !== undefined && initial.provider === group.id && initial.model === model.id) {
+        activeIndex = choices.length - 1;
+      }
+    }
+  }
+  if (activeIndex < 0 && choices.length > 0) activeIndex = 0;
+
+  const permissionOptions = controls.permissions?.catalog?.options ?? [];
+  const currentPermission = controls.permissions?.current
+    ?? controls.permissions?.catalog?.defaultPreset
+    ?? permissionOptions[0]?.value
+    ?? '';
+  const skills = Array.isArray(controls.skills) ? controls.skills : [];
+
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal sheet');
+  modal.innerHTML = `
+    <div class="sheet-head">
+      <h3>会话设置</h3>
+      <button class="iconbtn" id="sheet-close" title="关闭">${ICONS.close}</button>
+    </div>
+    <div class="sheet-scroll">
+      <section class="sheet-section">
+        <div class="sheet-label">模型</div>
+        <select id="control-model" class="sheet-select"></select>
+        <div class="effort-row" id="control-effort"></div>
+      </section>
+      <section class="sheet-section">
+        <div class="sheet-label">权限</div>
+        <select id="control-permission" class="sheet-select"></select>
+        <div class="sheet-hint" id="control-permission-hint"></div>
+      </section>
+      <section class="sheet-section">
+        <div class="sheet-label">技能</div>
+        <input id="control-skill-search" class="sheet-input" placeholder="搜索技能…" autocomplete="off">
+        <div class="skill-list" id="control-skills"></div>
+      </section>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="control-cancel">关闭</button>
+      <button class="btn primary" id="control-save">保存</button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  modal.querySelector('#sheet-close').addEventListener('click', close);
+  modal.querySelector('#control-cancel').addEventListener('click', close);
+
+  const modelSelect = modal.querySelector('#control-model');
+  choices.forEach((choice, index) => {
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = `${choice.groupName} · ${choice.model.name}`;
+    modelSelect.appendChild(option);
+  });
+  modelSelect.value = String(Math.max(0, activeIndex));
+  modelSelect.disabled = choices.length === 0;
+  let draftIndex = Math.max(0, activeIndex);
+  let draftEffort = typeof initial?.reasoningEffort === 'string' ? initial.reasoningEffort : '';
+
+  const effortRow = modal.querySelector('#control-effort');
+  const renderEfforts = () => {
+    effortRow.replaceChildren();
+    const choice = choices[draftIndex];
+    const efforts = choice?.model?.reasoning?.efforts;
+    if (!Array.isArray(efforts) || efforts.length === 0) {
+      draftEffort = '';
+      return;
+    }
+    const options = [{ id: '', name: '默认' }, ...efforts];
+    for (const effort of options) {
+      const button = el('button', `effort-chip${draftEffort === effort.id ? ' on' : ''}`);
+      button.textContent = effort.name;
+      button.title = effort.description ?? '';
+      button.addEventListener('click', () => {
+        draftEffort = effort.id;
+        renderEfforts();
+      });
+      effortRow.appendChild(button);
+    }
+  };
+  renderEfforts();
+  modelSelect.addEventListener('change', () => {
+    draftIndex = Number(modelSelect.value);
+    const choice = choices[draftIndex];
+    draftEffort = choice?.model?.reasoning?.defaultEffort ?? '';
+    renderEfforts();
+  });
+
+  const permissionSelect = modal.querySelector('#control-permission');
+  for (const option of permissionOptions) {
+    const node = document.createElement('option');
+    node.value = option.value;
+    node.textContent = option.name || option.value;
+    permissionSelect.appendChild(node);
+  }
+  if (currentPermission.length > 0 && !permissionOptions.some((option) => option.value === currentPermission)) {
+    const node = document.createElement('option');
+    node.value = currentPermission;
+    node.textContent = '当前自定义设置';
+    permissionSelect.appendChild(node);
+  }
+  permissionSelect.value = currentPermission;
+  const permissionHint = modal.querySelector('#control-permission-hint');
+  const renderPermissionHint = () => {
+    const selected = permissionOptions.find((option) => option.value === permissionSelect.value);
+    permissionHint.textContent = selected?.description ?? '';
+  };
+  renderPermissionHint();
+  permissionSelect.addEventListener('change', renderPermissionHint);
+
+  const skillSearch = modal.querySelector('#control-skill-search');
+  const skillList = modal.querySelector('#control-skills');
+  const renderSkills = () => {
+    const filter = skillSearch.value.trim().toLowerCase();
+    const matched = skills.filter((skill) => {
+      if (filter.length === 0) return true;
+      return `${skill.name ?? ''} ${skill.description ?? ''} ${skill.whenToUse ?? ''}`.toLowerCase().includes(filter);
+    });
+    if (matched.length === 0) {
+      skillList.innerHTML = '<div class="sheet-hint">没有匹配的技能</div>';
+      return;
+    }
+    skillList.innerHTML = matched.map((skill) => `
+      <button class="skill-item" data-skill-name="${escapeHtml(skill.name)}">
+        <span class="skill-name">/${escapeHtml(skill.name)}</span>
+        <span class="skill-desc">${escapeHtml(skill.description ?? '')}</span>
+      </button>`).join('');
+    for (const button of skillList.querySelectorAll('.skill-item')) {
+      button.addEventListener('click', () => {
+        insertComposerText(`/${button.dataset.skillName} `);
+        close();
+      });
+    }
+  };
+  skillSearch.addEventListener('input', renderSkills);
+  renderSkills();
+
+  modal.querySelector('#control-save').addEventListener('click', async () => {
+    const choice = choices[draftIndex];
+    if (choice === undefined) {
+      close();
+      return;
+    }
+    const button = modal.querySelector('#control-save');
+    button.disabled = true;
+    button.textContent = '保存中…';
+    try {
+      await api(`/api/sessions/${encodeURIComponent(current.id)}/model`, {
+        method: 'POST',
+        body: JSON.stringify({
+          provider: choice.provider,
+          model: choice.model.id,
+          ...(draftEffort.length === 0 ? {} : { reasoningEffort: draftEffort }),
+        }),
+      });
+      if (permissionSelect.value !== (controls.permissions?.current ?? '')) {
+        await api(`/api/sessions/${encodeURIComponent(current.id)}/permissions`, {
+          method: 'POST',
+          body: JSON.stringify({ preset: permissionSelect.value }),
+        });
+      }
+      close();
+      toast('已保存', 'ok');
+      await loadControls(current.id);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = '保存';
+      toast(error.message ?? String(error));
+    }
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* 问题回答                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function startQuestionPolling(id) {
+  const current = state.current;
+  if (current === undefined || current.id !== id) return;
+  clearInterval(current.questionTimer);
+  void loadQuestions(id);
+  current.questionTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && state.current?.id === id) void loadQuestions(id);
+  }, 3000);
+}
+
+async function loadQuestions(id) {
+  try {
+    const payload = await api(`/api/sessions/${encodeURIComponent(id)}/questions`);
+    const current = state.current;
+    if (current?.id !== id) return;
+    current.questions = Array.isArray(payload.active) ? payload.active : [];
+    renderQuestionDock();
+  } catch {
+    /* 问题投影不可用时静默 */
+  }
+}
+
+function renderQuestionDock() {
+  const dock = document.querySelector('#question-dock');
+  if (dock === null) return;
+  const current = state.current;
+  const active = current?.questions ?? [];
+  if (active.length === 0) {
+    dock.replaceChildren();
+    return;
+  }
+  const answerable = active.filter((item) => item.state === 'continued');
+  if (answerable.length > 0) {
+    const button = el('button', 'question-banner');
+    button.dataset.questionAction = 'open';
+    button.innerHTML = `${ICONS.question}<span>有 ${answerable.length} 个问题待回答</span><span class="pill run">回答</span>`;
+    dock.replaceChildren(button);
+    return;
+  }
+  const waiting = el('div', 'question-banner waiting');
+  waiting.innerHTML = `${ICONS.question}<span>有 ${active.length} 个问题等待工具结束</span>`;
+  dock.replaceChildren(waiting);
+}
+
+function openQuestionModal() {
+  const current = state.current;
+  if (current === undefined) return;
+  const call = (current.questions ?? []).find((item) => item.state === 'continued');
+  if (call === undefined) {
+    toast('当前没有可回答的问题');
+    return;
+  }
+  const questions = Array.isArray(call.questions) ? call.questions : [];
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal sheet');
+  modal.innerHTML = `
+    <div class="sheet-head">
+      <h3>回答提问</h3>
+      <button class="iconbtn" id="question-close" title="关闭">${ICONS.close}</button>
+    </div>
+    <div class="sheet-scroll" id="question-form"></div>
+    <div class="modal-actions">
+      <button class="btn" id="question-cancel">取消</button>
+      <button class="btn primary" id="question-submit">提交回答</button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const form = modal.querySelector('#question-form');
+  questions.forEach((question, index) => {
+    const section = el('section', 'question-item');
+    const header = question.header ? `<div class="question-header">${escapeHtml(question.header)}</div>` : '';
+    const detail = question.detail ? `<div class="question-detail">${escapeHtml(question.detail).replaceAll('\n', '<br>')}</div>` : '';
+    const options = Array.isArray(question.options) ? question.options : [];
+    const type = question.multiSelect === true ? 'checkbox' : 'radio';
+    section.innerHTML = `
+      ${header}
+      <div class="question-text">${escapeHtml(question.question ?? '')}</div>
+      ${detail}
+      <div class="question-options">
+        ${options.map((option, optionIndex) => `
+          <label class="question-option">
+            <input type="${type}" name="q-${index}" value="${escapeHtml(option.label)}" id="q-${index}-${optionIndex}">
+            <span class="question-option-main">${escapeHtml(option.label)}</span>
+            ${option.description ? `<span class="question-option-desc">${escapeHtml(option.description)}</span>` : ''}
+          </label>`).join('')}
+      </div>
+      <input class="sheet-input" data-custom-index="${index}" placeholder="${options.length > 0 ? '自定义回答（可选）' : '输入回答'}">
+    `;
+    form.appendChild(section);
+  });
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  modal.querySelector('#question-close').addEventListener('click', close);
+  modal.querySelector('#question-cancel').addEventListener('click', close);
+  modal.querySelector('#question-submit').addEventListener('click', async () => {
+    const answers = [];
+    for (let index = 0; index < questions.length; index += 1) {
+      const question = questions[index];
+      const checked = [...modal.querySelectorAll(`input[name="q-${index}"]:checked`)].map((input) => input.value);
+      const customInput = modal.querySelector(`[data-custom-index="${index}"]`);
+      const custom = typeof customInput?.value === 'string' ? customInput.value.trim() : '';
+      if (checked.length === 0 && custom.length === 0) {
+        toast(`请回答第 ${index + 1} 个问题`);
+        return;
+      }
+      const multi = question.multiSelect === true;
+      answers.push({
+        id: question.id,
+        selected: multi ? checked : (custom.length > 0 ? [] : checked),
+        ...(custom.length > 0 ? { custom } : {}),
+      });
+    }
+    const submit = modal.querySelector('#question-submit');
+    submit.disabled = true;
+    submit.textContent = '提交中…';
+    try {
+      const result = await api(`/api/sessions/${encodeURIComponent(current.id)}/questions/${encodeURIComponent(call.callId)}/answer`, {
+        method: 'POST',
+        body: JSON.stringify({ answers }),
+      });
+      if (result.accepted === false) {
+        toast('问题已经不可回答');
+      } else {
+        toast('已提交回答', 'ok');
+      }
+      close();
+      await loadQuestions(current.id);
+    } catch (error) {
+      submit.disabled = false;
+      submit.textContent = '提交回答';
+      toast(error.message ?? String(error));
+    }
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* 图片                                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 读取文件为 data URL。
+ * @param {File} file
+ * @returns {Promise<string>}
+ */
+function readFileAsDataUrl(file) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const reader = new FileReader();
+    reader.onload = () => resolvePromise(String(reader.result ?? ''));
+    reader.onerror = () => rejectPromise(reader.error ?? new Error('读取图片失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function addImages(files) {
+  const current = state.current;
+  if (current === undefined) return;
+  if (current.features?.images !== true) {
+    toast('重启 DSH 后可添加图片');
+    return;
+  }
+  for (const file of files) {
+    if (current.images.length >= 4) {
+      toast('最多添加 4 张图片');
+      break;
+    }
+    if (!file.type.startsWith('image/')) continue;
+    if (!/^image\/(?:png|jpe?g|webp|gif)$/u.test(file.type)) {
+      toast('只支持 png/jpeg/webp/gif 图片');
+      continue;
+    }
+    if (file.size > 18 * 1024 * 1024) {
+      toast(`${file.name} 超过 18 MB`);
+      continue;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      current.images.push({
+        mediaType: file.type,
+        data: dataUrl.replace(/^data:[^;]+;base64,/u, ''),
+        name: file.name,
+        preview: dataUrl,
+      });
+    } catch (error) {
+      toast(error.message ?? String(error));
+    }
+  }
+  renderImageStrip();
+  updateSendState();
+}
+
+function renderImageStrip() {
+  const strip = document.querySelector('#image-strip');
+  if (strip === null) return;
+  const images = state.current?.images ?? [];
+  strip.hidden = images.length === 0;
+  strip.innerHTML = images.map((image, index) => `
+    <div class="image-thumb">
+      <img src="${image.preview}" alt="${escapeHtml(image.name ?? '图片')}">
+      <button class="image-remove" data-image-index="${index}" title="移除">${ICONS.close}</button>
+    </div>`).join('');
+}
+
 function updateSendState() {
   const textarea = document.querySelector('#composer');
   const send = document.querySelector('#send');
   const stop = document.querySelector('#stop');
   if (textarea === null || send === null) return;
   const hasText = textarea.value.trim().length > 0;
-  send.disabled = !hasText;
+  const hasImages = (state.current?.images?.length ?? 0) > 0;
+  send.disabled = !hasText && !hasImages;
   if (stop !== null) stop.style.display = state.current?.running === true ? 'flex' : 'none';
 }
 
@@ -1098,7 +1649,7 @@ function applyEvent(event, current, options = {}) {
       if (data?.source?.kind !== 'user') return false;
       const text = blocksText(data.content);
       if (text.trim().length === 0 && !(data.content ?? []).some((block) => block.type === 'image' || block.type === 'file')) return false;
-      const pendingIndex = current.messages.findIndex((message) => message.pending === true && blocksText(message.blocks) === text);
+      const pendingIndex = current.messages.findIndex((message) => message.pending === true);
       if (pendingIndex >= 0) current.messages.splice(pendingIndex, 1);
       current.messages.push({
         kind: 'user',
@@ -1276,8 +1827,13 @@ function renderUserMessage(message) {
   let html = '';
   for (const block of message.blocks ?? []) {
     if (block.type === 'text') html += `<div>${escapeHtml(block.text ?? '').replaceAll('\n', '<br>')}</div>`;
-    else if (block.type === 'image') html += attachmentImage(message.sessionId ?? state.current?.id, block);
-    else if (block.type === 'file') html += `<div class="pill">📎 ${escapeHtml(block.attachment?.name ?? '文件')}</div>`;
+    else if (block.type === 'image') {
+      if (typeof block.dataUrl === 'string') {
+        html += `<img src="${block.dataUrl}" alt="${escapeHtml(block.name ?? '图片')}" style="max-width:100%;border-radius:10px;display:block;margin:4px 0">`;
+      } else {
+        html += attachmentImage(message.sessionId ?? state.current?.id, block);
+      }
+    } else if (block.type === 'file') html += `<div class="pill">📎 ${escapeHtml(block.attachment?.name ?? '文件')}</div>`;
   }
   bubble.innerHTML = html.length > 0 ? html : '<span class="pill">空消息</span>';
   wrap.appendChild(bubble);
@@ -1522,18 +2078,26 @@ async function sendMessage() {
   const textarea = document.querySelector('#composer');
   if (textarea === null) return;
   const text = textarea.value.trim();
-  if (text.length === 0) return;
+  const images = current.images.slice(0, 4);
+  if (text.length === 0 && images.length === 0) return;
 
   textarea.value = '';
+  current.images = [];
+  renderImageStrip();
   autosize(textarea);
   updateSendState();
 
+  const blocks = [];
+  if (text.length > 0) blocks.push({ type: 'text', text });
+  for (const image of images) {
+    blocks.push({ type: 'image', dataUrl: image.preview, name: image.name });
+  }
   const pending = {
     kind: 'user',
     pending: true,
     time: Date.now(),
     seq: Number.MAX_SAFE_INTEGER,
-    blocks: [{ type: 'text', text }],
+    blocks,
   };
   current.messages.push(pending);
   current.nearBottom = true;
@@ -1543,11 +2107,26 @@ async function sendMessage() {
   try {
     await api(`/api/sessions/${encodeURIComponent(current.id)}/prompt`, {
       method: 'POST',
-      body: JSON.stringify({ text, mode: 'queue' }),
+      body: JSON.stringify({
+        text,
+        mode: 'queue',
+        images: images.map((image) => ({
+          mediaType: image.mediaType,
+          data: image.data,
+          name: image.name,
+        })),
+      }),
     });
   } catch (error) {
     const index = current.messages.indexOf(pending);
     if (index >= 0) current.messages.splice(index, 1);
+    if (state.current === current) {
+      current.images = images;
+      if (textarea.value.length === 0) textarea.value = text;
+      renderImageStrip();
+      autosize(textarea);
+      updateSendState();
+    }
     renderMessages();
     toast(error.message ?? String(error));
   }
