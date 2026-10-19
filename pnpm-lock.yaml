@@ -1,0 +1,25 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    optionalDependencies:
+      agentroam-cloudflared-win32-x64:
+        specifier: 0.2.0-preview.18
+        version: 0.2.0-preview.18
+
+packages:
+
+  agentroam-cloudflared-win32-x64@0.2.0-preview.18:
+    resolution: {integrity: sha512-JJcCcDR9A/IGZO3iUCfowyHynZ9UZknIvSiTVDmL32VeTaEBMKm6r4mRyQId7Juw6GvtNz2zfE1ZgSTndufDQQ==}
+    cpu: [x64]
+    os: [win32]
+
+snapshots:
+
+  agentroam-cloudflared-win32-x64@0.2.0-preview.18:
+    optional: true

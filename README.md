@@ -1,0 +1,123 @@
+# dsh-pocket
+
+把本机的 DeepSeek Harness 装进口袋：起一个独立的移动端 Web 服务，按需拉起内外网隧道；手机浏览器打开后可以查看会话、实时输出和工具调用，也能反向发送指令、停止当前回合。
+
+- **独立移动页面**：不是把桌面 GUI 硬塞进手机，而是为窄屏重写的会话列表 + 聊天流。
+- **流式输出**：SSE 跟进 `sessionController.follow`，助手文本、思考过程、工具调用与结果实时出现。
+- **反向控制**：发送提示词（空闲时立即执行，运行中进入队列）、停止当前回合、新建会话。
+- **三种隧道**：`cloudflared`（Quick Tunnel，无浏览器拦截页）、`localtunnel`、`localhost.run`；也可以填自定义命令或固定的 `publicUrl`。
+- **扫码即用**：桌面面板生成带令牌的二维码，手机相机一扫就打开。
+- **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
+- **零运行时依赖**：宿主、移动页面和面板全部是原生 ESM；二维码编码器随包内嵌。
+
+| 会话列表 | 聊天与工具卡片 | 桌面面板 |
+| --- | --- | --- |
+| ![手机会话列表](preview/mobile-list-phone.png) | ![手机聊天](preview/mobile-chat-tools.png) | ![桌面面板](preview/desktop-pocket-qr.png) |
+
+## 安装
+
+在当前 DSH profile 里安装本目录（Plugin Manager → 本地目录安装，或调用 `plugin_manager` 的 `install_bundle`）：
+
+```text
+D:\DeepseekHarnessProjects\dsh-pocket
+```
+
+装好后刷新一次 Web GUI，侧栏的全局面板列表里会出现 **Pocket**。
+
+> 本包以 `link:` 方式安装到 profile 时，pnpm 不会替被链接的目录安装它自己的可选依赖。若要让 Windows x64 自动带上 cloudflared，请先在本目录执行一次 `pnpm install`（只影响本目录的 `node_modules`）。从 npm 正式安装时这一步由包管理器自动完成。
+
+## 配置
+
+插件行 id 为 `dsh-pocket`，默认配置见 [`cordis.patch.yml`](cordis.patch.yml)。
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `port` | `8790` | 移动端监听端口；被占用时自动向后找 10 个端口。`0` 表示随机端口。 |
+| `lan` | `false`（本仓库 patch 里为 `true`） | 是否绑定 `0.0.0.0` 允许局域网访问；关掉时只绑 `127.0.0.1`，但隧道仍可用。 |
+| `tunnel` | `auto` | `auto` / `cloudflared` / `localtunnel` / `localhost.run` / `custom` / `off`。 |
+| `autoStart` | `true` | Host 启动后是否自动拉起隧道。 |
+| `publicUrl` | 无 | 已有反向代理或固定域名时直接使用它，不再起隧道进程。 |
+| `cloudflaredPath` | 无 | 指定 cloudflared 可执行文件；留空时优先用随包二进制，其次 PATH。 |
+| `customCommand` | 无 | `tunnel: custom` 时执行；`%PORT%` 会被替换成本地端口，输出里第一个公网 URL 视为就绪。 |
+| `token` | 自动生成 | 固定访问令牌；留空时使用 `~/.dsh/pocket/state.json` 里持久化的令牌。 |
+
+状态文件只保存令牌：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
+
+## 从手机访问
+
+1. 打开桌面侧栏的 **Pocket**。
+2. 手机相机扫描「扫码连接」里的二维码；隧道在线时二维码指向公网地址，否则指向局域网地址。
+3. 首次打开会写入一个 30 天有效的 HttpOnly Cookie；也可以把地址收藏。
+
+也可以手动复制面板里的「本机 / 局域网 / 公网」地址。**链接里带有访问令牌，等同于本机 DSH 的钥匙**，不要发到公开群聊或截图分享。令牌被泄露时，在面板点「轮换令牌」。
+
+### 隧道选择
+
+- **cloudflared**（推荐）：Quick Tunnel 无需账号，没有浏览器拦截页。Windows x64 上会通过可选依赖 `agentroam-cloudflared-win32-x64` 使用经过校验的官方二进制；其他平台请把 `cloudflared` 放进 PATH 或设置 `cloudflaredPath`。
+- **localtunnel**：需要系统里有 `lt` 命令。浏览器首次访问会经过 localtunnel 的 511 提示页，需要输入本机公网 IP 作为 tunnel password。
+- **localhost.run**：通过 `ssh -R` 建立隧道，需要出站 22 端口可用。
+- **custom**：任何能在 stdout/stderr 打印公网 URL 的命令都行，例如自建 frp / rathole 的客户端。
+
+`auto` 会按 `cloudflared → localtunnel → localhost.run` 的顺序尝试，失败原因会显示在面板的「隧道输出」里。
+
+> 部分网络（例如只返回 AAAA 记录的 DNS）可能让 `*.trycloudflare.com` 在电脑本机解析失败，但手机走自己的 DNS 通常正常。若手机也打不开，改用局域网地址或切换隧道方式。
+
+## 移动端能力
+
+- 会话列表：标题、工作目录、运行状态、最近活动时间；搜索；下拉刷新按钮。
+- 聊天流：用户/助手消息、Markdown、代码块、思考过程折叠、工具调用参数与结果、token 用量。
+- 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。
+- 新建会话：可填绝对工作目录，留空用 DSH 默认目录。
+- 历史翻页：顶部「加载更早的消息」；工具输出超过 20 KB 会在隧道侧截断，完整内容回桌面端看。
+
+## HTTP 接口
+
+移动服务（默认 `8790`）除 `/healthz` 外都需要令牌：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/` | 移动页面（无令牌时显示解锁页）。 |
+| GET | `/api/sessions` | 会话列表。 |
+| POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
+| GET | `/api/sessions/:id` | 标题、目录、运行状态。 |
+| GET | `/api/sessions/:id/follow` | SSE：`hello` + `snapshot` + 事件帧 + assistant-stream。 |
+| GET | `/api/sessions/:id/page?throughSeq=&beforeSeq=` | 历史翻页。 |
+| POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "queue" \| "steer" }`。 |
+| POST | `/api/sessions/:id/cancel` | 停止当前回合。 |
+| GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件。 |
+
+桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`rotate-token`、`restart`。
+
+模型工具 `pocket_share` 会把当前手机入口地址交给模型，方便用户直接要链接。
+
+## 已知限制
+
+- **审批与提问**：工具审批、`ask_user_question` 目前仍需在桌面端回答；手机端会看到会话保持运行。
+- **子代理会话**：移动列表只列普通会话，子代理（`origin: subagent`）不单独展示。
+- **模型选择 / 预设切换**：沿用会话现有设置，手机端不提供切换。
+- **图片上传**：可以查看会话里的图片，暂不支持从手机发图。
+- **归档会话**：列表暂未过滤已归档会话。
+- **PWA 离线**：有 manifest，但没有 Service Worker 离线缓存。
+
+## 开发
+
+```powershell
+node --check lib\index.js
+node --check lib\server.js
+node --check lib\tunnel.js
+node --check web\app.js
+node --check client\client.js
+pnpm install   # 仅为本目录拉取 Windows x64 的可选 cloudflared 二进制
+```
+
+- 宿主：`lib/index.js` 负责配置、生命周期与桌面面板路由；`lib/server.js` 是移动 HTTP/SSE 服务；`lib/tunnel.js` 管理隧道子进程。
+- 移动页面：`web/`（原生 ESM，无构建）。
+- 桌面面板：`client/client.js`，注册 `sidebar.panellist` 与 `main` 两个 slot。
+
+### 一个踩过的坑
+
+宿主会把多个 Client 插件拼进同一个 `<script>` 批次。各插件 bundle 的顶层 `const` 共享全局词法作用域——本插件最初在顶层声明了 `const MODULE_ID`，与 `@restregular/dsh-skill-center` 撞名，导致整条 web boot 报 `Identifier 'MODULE_ID' has already been declared`。现在整个 `client/client.js` 包在 IIFE 里；新增 Client 插件时也应该这样做。
+
+## License
+
+MIT。随包内嵌的二维码编码器与 cloudflared 二进制的许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

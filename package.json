@@ -1,0 +1,65 @@
+{
+  "name": "@restregular/dsh-pocket",
+  "version": "0.1.0",
+  "description": "Pocket — 把本机 DeepSeek Harness 装进口袋：本地起移动端 Web 服务并支持内外网隧道穿透，在手机上查看会话、流式输出与工具调用，并反向发送指令。 · Pocket for DeepSeek Harness: a mobile web surface with LAN and tunnel access to sessions, live streams, and tool calls.",
+  "type": "module",
+  "main": "lib/index.js",
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "author": "RestRegular",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RestRegular/dsh-pocket.git"
+  },
+  "homepage": "https://github.com/RestRegular/dsh-pocket#readme",
+  "bugs": {
+    "url": "https://github.com/RestRegular/dsh-pocket/issues"
+  },
+  "files": [
+    "lib",
+    "web",
+    "client",
+    "locale",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "mobile",
+    "pocket",
+    "tunnel",
+    "remote"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "optionalDependencies": {
+    "agentroam-cloudflared-win32-x64": "0.2.0-preview.18"
+  }
+}

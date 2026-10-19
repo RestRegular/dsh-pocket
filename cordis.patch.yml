@@ -1,0 +1,15 @@
+# dsh-pocket bundle patch.
+#
+# name 必须逐字等于本包 package.json 的 name：宿主 client-modules 以 loader 行名
+# 定位 package.json（nearestPackage 严格比对 name），写成裸名时宿主半边仍能挂载，
+# 但客户端半边会被静默丢弃。
+- insert:
+    - id: dsh-pocket
+      name: '@restregular/dsh-pocket'
+      config:
+        # 移动端页面监听端口；被占用时自动向后寻找空闲端口。
+        port: 8790
+        # 是否同时允许局域网访问（绑定 0.0.0.0）。仅本机/隧道可关掉。
+        lan: true
+        # auto = 依次尝试 cloudflared → localtunnel → localhost.run
+        tunnel: auto
