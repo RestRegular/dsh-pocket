@@ -501,9 +501,12 @@ function renderSessionList() {
   const container = document.querySelector('#session-list');
   if (container === null) return;
   const sub = document.querySelector('#list-sub');
-  const nonArchived = Math.max(0, (state.counts.total ?? state.sessions.length) - (state.counts.archived ?? state.archived.length));
+  const visible = state.counts.visible ?? state.sessions.length;
+  const hiddenBlank = state.counts.hiddenBlank ?? 0;
   if (sub !== null) {
-    sub.textContent = `${nonArchived} 个会话 · ${state.workspaces.length} 个工作区${state.archived.length > 0 ? ` · ${state.archived.length} 个已归档` : ''}`;
+    sub.textContent = `${visible} 个会话 · ${state.workspaces.length} 个工作区`
+      + `${state.archived.length > 0 ? ` · ${state.archived.length} 个已归档` : ''}`
+      + `${hiddenBlank > 0 ? ` · 已隐藏 ${hiddenBlank} 个空会话` : ''}`;
   }
 
   const filter = state.filter.toLowerCase();
