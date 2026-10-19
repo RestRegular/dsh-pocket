@@ -24,7 +24,13 @@
 
 ## 安装
 
-在当前 DSH profile 里安装本目录（Plugin Manager → 本地目录安装，或调用 `plugin_manager` 的 `install_bundle`）：
+从 npm 安装（Plugin Manager → 安装 Bundle，或调用 `plugin_manager` 的 `install_bundle`）：
+
+```text
+@restregular/dsh-pocket
+```
+
+也可以安装本目录（Plugin Manager → 本地目录安装）：
 
 ```text
 D:\DeepseekHarnessProjects\dsh-pocket
