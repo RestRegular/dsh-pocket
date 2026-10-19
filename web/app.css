@@ -138,6 +138,7 @@ a { color: var(--accent); text-decoration: none; }
 .ws-add svg { width: 15px; height: 15px; }
 .ws-path { padding: 0 6px 6px 41px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ws-empty { padding: 2px 8px 8px 41px; font-size: 12px; color: var(--faint); }
+.ws-sessions { padding-left: 18px; padding-bottom: 2px; }
 .ws-archived .ws-title { color: var(--faint); }
 .ws-archived .ws-icon { color: var(--faint); }
 .ws-unassigned .ws-title { color: var(--faint); }
@@ -227,6 +228,13 @@ a { color: var(--accent); text-decoration: none; }
 }
 .md pre code { background: transparent; padding: 0; font-size: 12px; line-height: 1.5; }
 .md a { color: #7fb0ff; text-decoration: underline; text-underline-offset: 2px; }
+.md .md-image { display: block; margin: 9px 0; text-decoration: none; }
+.md img { display: block; max-width: 100%; height: auto; border-radius: 10px; background: var(--card-2); }
+.md .table-wrap { margin: 9px 0; overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 10px; -webkit-overflow-scrolling: touch; }
+.md table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.md th, .md td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft); text-align: left; white-space: nowrap; }
+.md th { background: var(--card-2); color: var(--dim); font-weight: 650; }
+.md tbody tr:last-child td { border-bottom: 0; }
 
 .thinking {
   margin: 2px 0 8px;

@@ -183,6 +183,81 @@ function toolIcon(name) {
 /* Markdown（先转义，再做最小语法）                                             */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * 把 Markdown 图片地址解析成手机端可加载的 URL。
+ * 相对路径通过会话工作区文件接口读取。
+ * @param {string} source
+ * @returns {string}
+ */
+function markdownImageUrl(source) {
+  const value = String(source ?? '').trim();
+  if (/^(?:https?:|data:image\/|blob:|\/)/iu.test(value)) return value;
+  const sessionId = state.current?.id;
+  if (sessionId === undefined || value.length === 0) return value;
+  return `/api/sessions/${encodeURIComponent(sessionId)}/file`
+    + `?path=${encodeURIComponent(value)}&token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * 渲染一个 Markdown 图片节点；外面包一层链接，方便点开大图。
+ * @param {{ alt: string, src: string }} image
+ * @returns {string}
+ */
+function markdownImageHtml(image) {
+  const url = escapeHtml(markdownImageUrl(image.src));
+  const alt = escapeHtml(image.alt);
+  return `<a class="md-image" href="${url}" target="_blank" rel="noopener noreferrer">`
+    + `<img src="${url}" alt="${alt}" loading="lazy"></a>`;
+}
+
+/**
+ * 切分 Markdown 表格行。
+ * @param {string} line
+ * @returns {string[]}
+ */
+function tableCells(line) {
+  return line.trim().replace(/^\|/u, '').replace(/\|$/u, '').split('|').map((cell) => cell.trim());
+}
+
+/**
+ * 是否是表格的 `| --- | :---: |` 分隔行。
+ * @param {string} line
+ * @returns {boolean}
+ */
+function isTableSeparator(line) {
+  const cells = tableCells(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/u.test(cell));
+}
+
+/**
+ * 表格单元格对齐方式。
+ * @param {string} cell
+ * @returns {'left' | 'center' | 'right' | ''}
+ */
+function tableAlign(cell) {
+  const value = cell.trim();
+  const left = value.startsWith(':');
+  const right = value.endsWith(':');
+  if (left && right) return 'center';
+  if (right) return 'right';
+  if (left) return 'left';
+  return '';
+}
+
+/**
+ * 渲染表格。
+ * @param {string[]} header
+ * @param {string[]} aligns
+ * @param {string[][]} rows
+ * @returns {string}
+ */
+function tableHtml(header, aligns, rows) {
+  const style = (index) => (aligns[index] === undefined || aligns[index] === '' ? '' : ` style="text-align:${aligns[index]}"`);
+  const head = header.map((cell, index) => `<th${style(index)}>${cell}</th>`).join('');
+  const body = rows.map((row) => `<tr>${header.map((_, index) => `<td${style(index)}>${row[index] ?? ''}</td>`).join('')}</tr>`).join('');
+  return `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
 function renderMarkdown(source) {
   const text = String(source ?? '');
   if (text.trim().length === 0) return '';
@@ -192,7 +267,18 @@ function renderMarkdown(source) {
     return `\u0000${codeBlocks.length - 1}\u0000`;
   });
 
+  // 图片必须在 escapeHtml 之前抽出来，避免 ![alt](src) 被链接正则拆坏。
+  const images = [];
+  working = working.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/gu, (_match, alt, src) => {
+    images.push({ alt, src });
+    return `\u0001${images.length - 1}\u0001`;
+  });
+
   working = escapeHtml(working);
+  working = working.replace(/\u0001(\d+)\u0001/gu, (_match, index) => {
+    const image = images[Number(index)];
+    return image === undefined ? '' : markdownImageHtml(image);
+  });
   working = working.replace(/`([^`\n]+)`/gu, '<code>$1</code>');
   working = working.replace(/\*\*([^*\n]+)\*\*/gu, '<strong>$1</strong>');
   working = working.replace(/(^|[^*])\*([^*\n]+)\*/gu, '$1<em>$2</em>');
@@ -217,7 +303,8 @@ function renderMarkdown(source) {
     }
   };
 
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
     const codeMatch = /^\u0000(\d+)\u0000$/u.exec(line.trim());
     if (codeMatch !== null) {
       flushParagraph();
@@ -232,6 +319,21 @@ function renderMarkdown(source) {
     if (line.trim().length === 0) {
       flushParagraph();
       closeList();
+      continue;
+    }
+    if (line.includes('|') && index + 1 < lines.length && isTableSeparator(lines[index + 1])) {
+      flushParagraph();
+      closeList();
+      const header = tableCells(line);
+      const aligns = tableCells(lines[index + 1]).map(tableAlign);
+      const rows = [];
+      index += 2;
+      while (index < lines.length && lines[index].trim().length > 0 && lines[index].includes('|')) {
+        rows.push(tableCells(lines[index]));
+        index += 1;
+      }
+      index -= 1;
+      out.push(tableHtml(header, aligns, rows));
       continue;
     }
     const heading = /^(#{1,3})\s+(.*)$/u.exec(line);
@@ -502,6 +604,7 @@ function renderWorkspaceGroup(group, showPathInRows) {
     html += '<div class="ws-empty">暂无会话</div>';
     return html;
   }
+  let rows = '';
   for (const item of sessions) {
     const pills = [
       item.running === true ? '<span class="pill run">运行中</span>' : '',
@@ -511,7 +614,7 @@ function renderWorkspaceGroup(group, showPathInRows) {
     const meta = showPathInRows
       ? `<span class="session-meta"><span class="cwd">${escapeHtml(item.cwd || '未绑定目录')}</span></span>`
       : '';
-    html += `
+    rows += `
       <button class="session${item.running === true ? ' running' : ''}${item.archived === true ? ' archived' : ''}" data-id="${escapeHtml(item.id)}">
         <span class="session-main">
           <span class="session-title"><span>${escapeHtml(item.title ?? '会话')}</span>${pills}</span>
@@ -520,6 +623,7 @@ function renderWorkspaceGroup(group, showPathInRows) {
         <span class="session-time">${escapeHtml(relativeTime(item.updatedAt))}</span>
       </button>`;
   }
+  html += `<div class="ws-sessions">${rows}</div>`;
   return html;
 }
 

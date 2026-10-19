@@ -68,7 +68,7 @@ D:\DeepseekHarnessProjects\dsh-pocket
 ## 移动端能力
 
 - 会话列表：按工作区分组（顺序与桌面侧栏一致）、标题、运行状态、最新活动时间；工作区可折叠/展开并记住状态；每个工作区标题右侧的 `+` 直接在对应目录新建会话；空会话（点过新建但没发消息）不显示；顶部按钮切换是否显示已归档会话；搜索会话/工作区/目录。
-- 聊天流：用户/助手消息、Markdown、代码块、思考过程折叠、工具调用参数与结果、token 用量。
+- 聊天流：用户/助手消息、Markdown（标题、列表、代码块、表格、图片）、思考过程折叠、工具调用参数与结果、token 用量。Markdown 里的相对图片路径按当前会话工作区解析。
 - 工具卡片：默认折叠，标题里显示自动截断的命令/路径/查询摘要；点开看完整参数与结果，展开状态在流式重绘时保持。
 - 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。
 - 新建会话：直接点工作区标题右侧的 `+`，新会话自动挂到该工作区。
@@ -90,6 +90,7 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "queue" \| "steer" }`。 |
 | POST | `/api/sessions/:id/cancel` | 停止当前回合。 |
 | GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件。 |
+| GET | `/api/sessions/:id/file?path=preview/x.png` | 读取会话工作区内的图片，供 Markdown 相对路径图片使用。 |
 
 桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`rotate-token`、`restart`。
 
