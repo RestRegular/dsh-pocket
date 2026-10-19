@@ -49,12 +49,34 @@ if (!alreadyRegistered()) {
         tunnelError: '建立失败',
         provider: '通道',
         publicEntry: '公网入口',
+        overview: '概览',
+        serverCard: '手机服务',
+        serverCardHint: '手机与电脑在同一网络时可直接使用局域网地址。',
+        tunnelCard: '公网通道',
+        tunnelCardHint: 'Cloudflared 开箱即用；自有服务器走 SSH 反向转发。',
+        connectCard: '手机连接',
+        connectHint: '扫码即可打开 Pocket；链接内含访问令牌，请勿公开分享。',
+        publicEntryHint: '选择手机从外网访问时使用的通道。',
         cloudflared: 'Cloudflared（默认）',
+        cloudflaredShort: 'Cloudflared',
+        cloudflaredDesc: '自动 HTTPS 域名 · 无需服务器',
         ownServer: '自有服务器',
+        ownServerDesc: 'SSH 反向转发 · 自备公网 IP',
         serverAddress: '服务器 IP / 域名',
-        switchTunnel: '切换',
+        serverAddressHint: '需已配置免密 SSH，默认使用 root 与 80 端口。',
+        switchTunnel: '应用并重启',
         switching: '切换中…',
         serverRequired: '请填写服务器 IP 或域名',
+        lanIp: '局域网 IP',
+        lanAuto: '自动选择',
+        lanAutoDesc: '优先物理网卡',
+        lanVirtual: '虚拟网卡',
+        lanHint: '二维码与分享链接优先使用选中的地址。',
+        openPhone: '打开手机页面',
+        securityCard: '安全',
+        tokenHint: '等同于本机 DSH 的钥匙',
+        online: '在线',
+        offline: '未启动',
         sshHint: '自有服务器默认走 HTTP；令牌会明文传输，生产建议配置 HTTPS 反向代理。',
         start: '启动隧道',
         stop: '停止',
@@ -62,9 +84,6 @@ if (!alreadyRegistered()) {
         addresses: '访问地址',
         local: '本机',
         lan: '局域网',
-        lanIp: '局域网 IP',
-        lanAuto: '自动（第一个可用）',
-        lanVirtual: '虚拟网卡',
         public: '公网',
         noLan: '未发现局域网地址',
         copy: '复制',
@@ -103,12 +122,34 @@ if (!alreadyRegistered()) {
         tunnelError: 'Failed',
         provider: 'Provider',
         publicEntry: 'Public entry',
+        overview: 'Overview',
+        serverCard: 'Mobile server',
+        serverCardHint: 'Use a LAN URL when the phone and this computer share a network.',
+        tunnelCard: 'Public channel',
+        tunnelCardHint: 'Cloudflared works out of the box; the own-server relay uses SSH.',
+        connectCard: 'Phone access',
+        connectHint: 'Scan to open Pocket. The URL carries an access token; do not share it publicly.',
+        publicEntryHint: 'Choose the route used to reach this DSH from outside the LAN.',
         cloudflared: 'Cloudflared (default)',
+        cloudflaredShort: 'Cloudflared',
+        cloudflaredDesc: 'Automatic HTTPS host · no server needed',
         ownServer: 'Own server',
+        ownServerDesc: 'SSH reverse relay · your public IP',
         serverAddress: 'Server IP / hostname',
-        switchTunnel: 'Switch',
+        serverAddressHint: 'Requires passwordless SSH; root and port 80 are used by default.',
+        switchTunnel: 'Apply and restart',
         switching: 'Switching…',
         serverRequired: 'Enter a server IP or hostname',
+        lanIp: 'LAN IP',
+        lanAuto: 'Auto',
+        lanAutoDesc: 'Prefer a physical adapter',
+        lanVirtual: 'virtual adapter',
+        lanHint: 'The QR code and shared links prefer the selected address.',
+        openPhone: 'Open phone page',
+        securityCard: 'Security',
+        tokenHint: 'Equivalent to the key to this DSH',
+        online: 'Online',
+        offline: 'Stopped',
         sshHint: 'The own-server relay uses plain HTTP by default; the token crosses the network in clear text. Use HTTPS behind a reverse proxy in production.',
         start: 'Start tunnel',
         stop: 'Stop',
@@ -116,9 +157,6 @@ if (!alreadyRegistered()) {
         addresses: 'Access URLs',
         local: 'Local',
         lan: 'LAN',
-        lanIp: 'LAN IP',
-        lanAuto: 'Auto (first available)',
-        lanVirtual: 'virtual adapter',
         public: 'Public',
         noLan: 'No LAN address found',
         copy: 'Copy',
@@ -197,6 +235,70 @@ if (!alreadyRegistered()) {
 .dsh-pk-qr-hint{font-size:12px;color:var(--dsw-alias-label-tertiary);line-height:1.6;word-break:break-all}
 .dsh-pk-toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);padding:8px 15px;border-radius:10px;background:var(--dsw-alias-bg-layer-4,#1a2230);border:1px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary);font-size:12px;z-index:80;box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .dsh-pk-center{flex:1;display:flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-tertiary)}
+.dsh-pk-head-actions{display:flex;align-items:center;gap:8px;flex:none}
+.dsh-pk-eyebrow{font-size:10px;letter-spacing:.14em;color:var(--dsw-alias-label-caption);font-weight:650;margin-bottom:3px}
+.dsh-pk-body{padding-top:16px;gap:14px;max-width:940px}
+.dsh-pk-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.3;white-space:nowrap;flex:none}
+.dsh-pk-pill-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+.dsh-pk-pill.on{color:var(--dsw-alias-state-success-primary,#46d39a);border-color:var(--dsw-alias-state-success-primary,#46d39a)}
+.dsh-pk-pill.warn{color:var(--dsw-alias-state-warn-primary,#f5b84b);border-color:var(--dsw-alias-state-warn-primary,#f5b84b)}
+.dsh-pk-pill.err{color:var(--dsw-alias-state-error-primary,#ff6b6b);border-color:var(--dsw-alias-state-error-primary,#ff6b6b)}
+.dsh-pk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.dsh-pk-stat{display:flex;flex-direction:column;gap:2px;min-width:0;padding:11px 13px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1)}
+.dsh-pk-stat-label{font-size:10.5px;letter-spacing:.03em;color:var(--dsw-alias-label-tertiary)}
+.dsh-pk-stat-value{font-size:13px;font-weight:650;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-pk-stat-sub{font-size:10.5px;color:var(--dsw-alias-label-caption);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--dsw-font-mono,ui-monospace,Consolas,monospace)}
+.dsh-pk-grid{align-items:stretch}
+.dsh-pk-card{display:flex;flex-direction:column;padding:16px}
+.dsh-pk-card-top{align-items:flex-start;margin-bottom:4px;gap:10px}
+.dsh-pk-card-icon{width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;flex:none;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}
+.dsh-pk-card-heading{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.dsh-pk-card-sub{font-size:11px;line-height:1.45;color:var(--dsw-alias-label-caption);font-weight:400}
+.dsh-pk-card-top .dsh-pk-pill{margin-left:auto;margin-top:2px}
+.dsh-pk-field-label{font-size:11px;color:var(--dsw-alias-label-tertiary);font-weight:550}
+.dsh-pk-hint{font-size:11px;line-height:1.5;color:var(--dsw-alias-label-caption)}
+.dsh-pk-picker{position:relative;min-width:0}
+.dsh-pk-picker-btn{width:100%;display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;border:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;transition:border-color .12s ease,background .12s ease}
+.dsh-pk-picker-btn:hover:not(:disabled){border-color:var(--dsw-alias-border-l4);background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-pk-picker-btn.open{border-color:var(--dsw-alias-button-primary-fill)}
+.dsh-pk-picker-btn:disabled{opacity:.5;cursor:default}
+.dsh-pk-picker-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.dsh-pk-picker-value{font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-pk-picker-desc{font-size:10.5px;color:var(--dsw-alias-label-caption);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-pk-picker-chevron{flex:none;color:var(--dsw-alias-label-caption);transition:transform .15s ease}
+.dsh-pk-picker-btn.open .dsh-pk-picker-chevron{transform:rotate(180deg)}
+.dsh-pk-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;padding:5px;border-radius:12px;border:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-2));box-shadow:0 18px 44px rgba(0,0,0,.28);max-height:250px;overflow:auto}
+.dsh-pk-menu-item{width:100%;display:flex;align-items:center;gap:8px;padding:8px 9px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
+.dsh-pk-menu-item:hover,.dsh-pk-menu-item:focus-visible{background:var(--dsw-alias-interactive-bg-hover);outline:none}
+.dsh-pk-menu-item.selected{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-pk-menu-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.dsh-pk-menu-label{font-size:12px;font-weight:550}
+.dsh-pk-menu-desc{font-size:10.5px;color:var(--dsw-alias-label-caption)}
+.dsh-pk-menu-check{flex:none;color:var(--dsw-alias-button-primary-fill)}
+.dsh-pk-input-shell{display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:10px;border:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-caption)}
+.dsh-pk-input-shell:focus-within{border-color:var(--dsw-alias-button-primary-fill)}
+.dsh-pk-input-shell .dsh-pk-input{flex:1;min-width:0;padding:9px 0;border:0;background:transparent}
+.dsh-pk-card-footer{margin-top:auto;padding-top:14px}
+.dsh-pk-textlink{font-size:12px;color:var(--dsw-alias-button-primary-fill);text-decoration:none;font-weight:550}
+.dsh-pk-textlink:hover{text-decoration:underline}
+.dsh-pk-btn.block{width:100%;margin-top:10px;padding:9px 12px}
+.dsh-pk-url{padding:7px 9px 7px 11px;margin-bottom:7px;background:var(--dsw-alias-bg-layer-1)}
+.dsh-pk-url-label{width:44px}
+.dsh-pk-url-actions{display:flex;align-items:center;gap:2px;flex:none}
+.dsh-pk-url-action{padding:4px 6px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11px;text-decoration:none;cursor:pointer}
+.dsh-pk-url-action:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-pk-connect-card{margin-top:0}
+.dsh-pk-connect{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:12px}
+.dsh-pk-qr-wrap{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:9px 9px 7px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1)}
+.dsh-pk-qr-wrap img{width:160px;height:160px;display:block;border-radius:8px;background:#fff;padding:5px}
+.dsh-pk-qr-caption{font-size:10.5px;color:var(--dsw-alias-label-caption)}
+.dsh-pk-qr-wrap.empty{width:160px;min-height:160px;border-style:dashed;color:var(--dsw-alias-label-caption);font-size:11px;text-align:center;line-height:1.5}
+.dsh-pk-links{flex:1;min-width:220px}
+.dsh-pk-links .dsh-pk-note{margin-top:6px}
+.dsh-pk-security{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-2)}
+.dsh-pk-security-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.dsh-pk-token{font-family:var(--dsw-font-mono,ui-monospace,Consolas,monospace);font-size:11px;color:var(--dsw-alias-label-tertiary);padding:2px 7px;border-radius:6px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);white-space:nowrap}
+
 [data-platform='darwin'] .dsh-pk-head{padding-top:calc(30px + var(--dsh-frame-top-clearance,0px))}
 `;
 
@@ -244,6 +346,120 @@ if (!alreadyRegistered()) {
         );
       }
 
+      const GLYPHS = {
+        server: [
+          'M4 5.5h16v5H4z',
+          'M4 13.5h16v5H4z',
+          'M7 8h.01',
+          'M7 16h.01',
+        ],
+        globe: [
+          'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17z',
+          'M3.5 12h17',
+          'M12 3.5c2.3 2.3 3.6 5.3 3.6 8.5s-1.3 6.2-3.6 8.5c-2.3-2.3-3.6-5.3-3.6-8.5S9.7 5.8 12 3.5z',
+        ],
+        phone: [
+          'M8 2.8h8a2 2 0 0 1 2 2v14.4a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4.8a2 2 0 0 1 2-2z',
+          'M10 6h4',
+          'M10 18.5h4',
+        ],
+        shield: [
+          'M12 3l7 3v5c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6z',
+          'm9 12 2 2 4-4',
+        ],
+        chevron: ['m8 10 4 4 4-4'],
+        check: ['m6 12 4 4 8-8'],
+        plug: ['M9 7V3.5M15 7V3.5', 'M7 7h10v4a5 5 0 0 1-10 0z', 'M12 16v4.5'],
+      };
+
+      function LineIcon({ name, size = 16, className }) {
+        const paths = GLYPHS[name] ?? GLYPHS.server;
+        return h('svg', {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.7,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': 'true',
+          className,
+        }, paths.map((d, index) => h('path', { key: index, d })));
+      }
+
+      function StatusPill({ tone, label }) {
+        return h('span', { className: `dsh-pk-pill ${tone}` },
+          h('i', { className: 'dsh-pk-pill-dot' }),
+          label,
+        );
+      }
+
+      function Picker({ value, options, onChange, disabled, placeholder }) {
+        const [open, setOpen] = useState(false);
+        const root = useRef(null);
+        const current = options.find((option) => option.value === value);
+
+        useEffect(() => {
+          if (!open) return undefined;
+          const onPointer = (event) => {
+            if (root.current !== null && !root.current.contains(event.target)) setOpen(false);
+          };
+          const onKey = (event) => {
+            if (event.key === 'Escape') setOpen(false);
+          };
+          document.addEventListener('pointerdown', onPointer);
+          document.addEventListener('keydown', onKey);
+          return () => {
+            document.removeEventListener('pointerdown', onPointer);
+            document.removeEventListener('keydown', onKey);
+          };
+        }, [open]);
+
+        return h('div', { className: 'dsh-pk-picker', ref: root },
+          h('button', {
+            type: 'button',
+            className: `dsh-pk-picker-btn${open ? ' open' : ''}`,
+            disabled,
+            'aria-haspopup': 'listbox',
+            'aria-expanded': open,
+            onClick: () => setOpen((next) => !next),
+            onKeyDown: (event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setOpen(true);
+              }
+            },
+          },
+          h('span', { className: 'dsh-pk-picker-copy' },
+            h('span', { className: 'dsh-pk-picker-value' }, current?.label ?? placeholder ?? ''),
+            current?.description !== undefined ? h('span', { className: 'dsh-pk-picker-desc' }, current.description) : null,
+          ),
+          h(LineIcon, { name: 'chevron', size: 14, className: 'dsh-pk-picker-chevron' }),
+          ),
+          open
+            ? h('div', { className: 'dsh-pk-menu', role: 'listbox' },
+              options.map((option) => h('button', {
+                key: option.value,
+                type: 'button',
+                role: 'option',
+                'aria-selected': option.value === value,
+                className: `dsh-pk-menu-item${option.value === value ? ' selected' : ''}`,
+                onClick: () => {
+                  setOpen(false);
+                  onChange(option.value);
+                },
+              },
+              h('span', { className: 'dsh-pk-menu-copy' },
+                h('span', { className: 'dsh-pk-menu-label' }, option.label),
+                option.description !== undefined ? h('span', { className: 'dsh-pk-menu-desc' }, option.description) : null,
+              ),
+              option.value === value ? h(LineIcon, { name: 'check', size: 15, className: 'dsh-pk-menu-check' }) : null,
+              )))
+            : null,
+        );
+      }
+
       function statusTone(tunnel) {
         if (tunnel.state === 'online') return 'on';
         if (tunnel.state === 'starting') return 'warn busy';
@@ -270,7 +486,10 @@ if (!alreadyRegistered()) {
         return h('div', { className: 'dsh-pk-url' },
           h('span', { className: 'dsh-pk-url-label' }, label),
           h('span', { className: 'dsh-pk-url-text', title: url }, url),
-          h('button', { className: 'dsh-pk-btn', onClick: copy }, copied ? LANG.copied : LANG.copy),
+          h('div', { className: 'dsh-pk-url-actions' },
+            h('a', { className: 'dsh-pk-url-action', href: url, target: '_blank', rel: 'noopener noreferrer' }, LANG.open),
+            h('button', { className: 'dsh-pk-url-action', onClick: copy }, copied ? LANG.copied : LANG.copy),
+          ),
         );
       }
 
@@ -360,68 +579,127 @@ if (!alreadyRegistered()) {
         const tone = statusTone(tunnel);
         const isStarting = tunnel.state === 'starting';
         const isOnline = tunnel.state === 'online';
+        const providerName = tunnel.provider === 'cloudflared'
+          ? LANG.cloudflaredShort
+          : tunnel.provider === 'ssh'
+            ? LANG.ownServer
+            : tunnel.provider ?? '-';
+        const publicHost = typeof urls.publicUrl === 'string'
+          ? urls.publicUrl.replace(/^https?:\/\//u, '').split('/')[0]
+          : tunnelLabel(tunnel);
+        const selectedLan = lanOptions.find((option) => option.address === lanSelected);
+        const providerOptions = [
+          { value: 'cloudflared', label: LANG.cloudflared, description: LANG.cloudflaredDesc },
+          { value: 'ssh', label: LANG.ownServer, description: LANG.ownServerDesc },
+        ];
+        const lanPickerOptions = [
+          { value: '', label: LANG.lanAuto, description: LANG.lanAutoDesc },
+          ...lanOptions.map((option) => ({
+            value: option.address,
+            label: option.address,
+            description: `${option.name}${option.virtual ? ` · ${LANG.lanVirtual}` : ''}`,
+          })),
+        ];
+        const stat = (label, value, sub) => h('div', { className: 'dsh-pk-stat' },
+          h('span', { className: 'dsh-pk-stat-label' }, label),
+          h('b', { className: 'dsh-pk-stat-value' }, value),
+          h('span', { className: 'dsh-pk-stat-sub' }, sub),
+        );
 
         return h('div', { className: 'dsh-pk' },
           h('div', { className: 'dsh-pk-head' },
             h('div', { className: 'dsh-pk-head-main' },
+              h('div', { className: 'dsh-pk-eyebrow' }, 'POCKET · REMOTE'),
               h('h2', { className: 'dsh-pk-title' }, LANG.title),
               h('div', { className: 'dsh-pk-sub' }, LANG.subtitle),
             ),
-            h('button', { className: 'dsh-pk-btn', onClick: () => void refresh() }, LANG.refresh),
+            h('div', { className: 'dsh-pk-head-actions' },
+              h(StatusPill, { tone, label: tunnelLabel(tunnel) }),
+              h('button', { className: 'dsh-pk-btn', onClick: () => void refresh() }, LANG.refresh),
+            ),
           ),
           h('div', { className: 'dsh-pk-body' },
+            h('div', { className: 'dsh-pk-stats' },
+              stat(LANG.serverCard, status.server?.listening ? LANG.online : LANG.offline, `:${String(status.server?.port ?? '-')} · ${status.server?.host ?? '-'}`),
+              stat(LANG.publicEntry, providerName, isOnline ? publicHost : tunnelLabel(tunnel)),
+              stat(LANG.lanIp, selectedLan?.name ?? LANG.lanAuto, selectedLan?.address ?? `${lanOptions.length} ${LANG.lan}`),
+            ),
             h('div', { className: 'dsh-pk-grid' },
               h('section', { className: 'dsh-pk-card' },
                 h('div', { className: 'dsh-pk-card-top' },
-                  h('span', { className: `dsh-pk-dot ${status.server?.listening ? 'on' : ''}` }),
-                  h('span', { className: 'dsh-pk-card-title' }, LANG.server),
-                  h('span', { className: 'dsh-pk-empty' }, status.server?.listening ? LANG.listening : LANG.stopped),
+                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'server', size: 16 })),
+                  h('div', { className: 'dsh-pk-card-heading' },
+                    h('span', { className: 'dsh-pk-card-title' }, LANG.serverCard),
+                    h('span', { className: 'dsh-pk-card-sub' }, LANG.serverCardHint),
+                  ),
+                  h(StatusPill, { tone: status.server?.listening ? 'on' : '', label: status.server?.listening ? LANG.listening : LANG.stopped }),
                 ),
                 h('dl', { className: 'dsh-pk-kv' },
                   h('dt', null, LANG.port), h('dd', null, String(status.server?.port ?? '-')),
                   h('dt', null, LANG.bind), h('dd', null, status.server?.host ?? '-'),
                 ),
-                h('div', { className: 'dsh-pk-note', style: { marginTop: '10px' } }, LANG.hintLan),
+                h('div', { className: 'dsh-pk-field' },
+                  h('span', { className: 'dsh-pk-field-label' }, LANG.lanIp),
+                  h(Picker, {
+                    value: lanSelected,
+                    options: lanPickerOptions,
+                    disabled: busy !== '',
+                    onChange: (value) => void action('set-lan', { address: value }),
+                  }),
+                  h('span', { className: 'dsh-pk-hint' }, LANG.lanHint),
+                ),
+                h('div', { className: 'dsh-pk-card-footer' },
+                  h('a', {
+                    className: 'dsh-pk-textlink',
+                    href: lan[0] ?? urls.local,
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                  }, LANG.openPhone),
+                ),
               ),
               h('section', { className: 'dsh-pk-card' },
                 h('div', { className: 'dsh-pk-card-top' },
-                  h('span', { className: `dsh-pk-dot ${tone}` }),
-                  h('span', { className: 'dsh-pk-card-title' }, LANG.tunnel),
-                  h('span', { className: 'dsh-pk-empty' }, tunnelLabel(tunnel)),
+                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'globe', size: 16 })),
+                  h('div', { className: 'dsh-pk-card-heading' },
+                    h('span', { className: 'dsh-pk-card-title' }, LANG.tunnelCard),
+                    h('span', { className: 'dsh-pk-card-sub' }, LANG.tunnelCardHint),
+                  ),
+                  h(StatusPill, { tone, label: tunnelLabel(tunnel) }),
                 ),
-                h('dl', { className: 'dsh-pk-kv' },
-                  h('dt', null, LANG.provider), h('dd', null, tunnel.provider ?? '-'),
+                h('div', { className: 'dsh-pk-field' },
+                  h('span', { className: 'dsh-pk-field-label' }, LANG.publicEntry),
+                  h(Picker, {
+                    value: provider,
+                    options: providerOptions,
+                    disabled: busy !== '',
+                    onChange: setProvider,
+                  }),
+                  h('span', { className: 'dsh-pk-hint' }, LANG.publicEntryHint),
+                ),
+                provider === 'ssh'
+                  ? h('div', { className: 'dsh-pk-field' },
+                    h('span', { className: 'dsh-pk-field-label' }, LANG.serverAddress),
+                    h('div', { className: 'dsh-pk-input-shell' },
+                      h(LineIcon, { name: 'server', size: 15 }),
+                      h('input', {
+                        className: 'dsh-pk-input',
+                        value: sshHost,
+                        placeholder: LANG.serverAddress,
+                        disabled: busy !== '',
+                        onChange: (event) => setSshHost(event.target.value),
+                      }),
+                    ),
+                    h('span', { className: 'dsh-pk-hint' }, LANG.serverAddressHint),
+                  )
+                  : null,
+                h('div', { className: 'dsh-pk-actions' },
+                  h('button', {
+                    className: 'dsh-pk-btn primary block',
+                    disabled: busy !== '' || (provider === 'ssh' && sshHost.trim().length === 0),
+                    onClick: switchProvider,
+                  }, busy === 'switch-tunnel' ? LANG.switching : LANG.switchTunnel),
                 ),
                 tunnel.error !== undefined ? h('div', { className: 'dsh-pk-err' }, tunnel.error) : null,
-                h('div', { className: 'dsh-pk-field' },
-                  h('label', { className: 'dsh-pk-label' }, LANG.publicEntry),
-                  h('select', {
-                    className: 'dsh-pk-select',
-                    value: provider,
-                    disabled: busy !== '',
-                    onChange: (event) => setProvider(event.target.value),
-                  },
-                    h('option', { value: 'cloudflared' }, LANG.cloudflared),
-                    h('option', { value: 'ssh' }, LANG.ownServer),
-                  ),
-                  provider === 'ssh'
-                    ? h('input', {
-                      className: 'dsh-pk-input',
-                      value: sshHost,
-                      placeholder: LANG.serverAddress,
-                      disabled: busy !== '',
-                      onChange: (event) => setSshHost(event.target.value),
-                    })
-                    : null,
-                  h('div', { className: 'dsh-pk-actions' },
-                    h('button', {
-                      className: 'dsh-pk-btn primary',
-                      disabled: busy !== '' || (provider === 'ssh' && sshHost.trim().length === 0),
-                      onClick: switchProvider,
-                    }, busy === 'switch-tunnel' ? LANG.switching : LANG.switchTunnel),
-                  ),
-                  provider === 'ssh' ? h('div', { className: 'dsh-pk-note', style: { marginTop: '8px' } }, LANG.sshHint) : null,
-                ),
                 h('div', { className: 'dsh-pk-actions' },
                   isOnline || isStarting
                     ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-stop') }, LANG.stop)
@@ -430,7 +708,7 @@ if (!alreadyRegistered()) {
                     ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-restart') }, LANG.restart)
                     : null,
                 ),
-                h('div', { className: 'dsh-pk-note', style: { marginTop: '10px' } }, LANG.hintTunnel),
+                provider === 'ssh' ? h('div', { className: 'dsh-pk-note' }, LANG.sshHint) : null,
                 Array.isArray(tunnel.log) && tunnel.log.length > 0
                   ? h('details', { className: 'dsh-pk-details' },
                     h('summary', null, LANG.log),
@@ -439,57 +717,45 @@ if (!alreadyRegistered()) {
                   : null,
               ),
             ),
-            status.qr?.image
-              ? h('section', { className: 'dsh-pk-card' },
-                h('div', { className: 'dsh-pk-card-top' },
-                  h('span', { className: 'dsh-pk-card-title' }, LANG.qrTitle),
+            h('section', { className: 'dsh-pk-card dsh-pk-connect-card' },
+              h('div', { className: 'dsh-pk-card-top' },
+                h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'phone', size: 16 })),
+                h('div', { className: 'dsh-pk-card-heading' },
+                  h('span', { className: 'dsh-pk-card-title' }, LANG.connectCard),
+                  h('span', { className: 'dsh-pk-card-sub' }, LANG.connectHint),
                 ),
-                h('div', { className: 'dsh-pk-qr' },
-                  h('img', { src: status.qr.image, alt: LANG.qrTitle }),
-                  h('div', { className: 'dsh-pk-qr-side' },
-                    h('div', { className: 'dsh-pk-qr-title' }, LANG.qrHint),
-                    h('div', { className: 'dsh-pk-qr-hint' }, status.qr.url),
+                isOnline ? h(StatusPill, { tone: 'on', label: LANG.online }) : null,
+              ),
+              h('div', { className: 'dsh-pk-connect' },
+                status.qr?.image
+                  ? h('div', { className: 'dsh-pk-qr-wrap' },
+                    h('img', { src: status.qr.image, alt: LANG.qrTitle }),
+                    h('span', { className: 'dsh-pk-qr-caption' }, LANG.qrTitle),
+                  )
+                  : h('div', { className: 'dsh-pk-qr-wrap empty' },
+                    h(LineIcon, { name: 'phone', size: 30 }),
+                    h('span', null, LANG.noLan),
                   ),
+                h('div', { className: 'dsh-pk-links' },
+                  h(UrlRow, { label: LANG.local, url: urls.local }),
+                  isOnline ? h(UrlRow, { label: LANG.public, url: urls.publicUrl }) : null,
+                  lan.length === 0
+                    ? h('div', { className: 'dsh-pk-empty' }, LANG.noLan)
+                    : lan.map((url, index) => h(UrlRow, { key: `${url}-${index}`, label: LANG.lan, url })),
+                  h('div', { className: 'dsh-pk-note' }, LANG.warning),
                 ),
-              )
-              : null,
-            h('section', { className: 'dsh-pk-card' },
-              h('div', { className: 'dsh-pk-card-top' },
-                h('span', { className: 'dsh-pk-card-title' }, LANG.addresses),
               ),
-              h(UrlRow, { label: LANG.local, url: urls.local }),
-              isOnline ? h(UrlRow, { label: LANG.public, url: urls.publicUrl }) : null,
-              lanOptions.length > 0
-                ? h('div', { className: 'dsh-pk-lanpick' },
-                  h('span', { className: 'dsh-pk-lanpick-label' }, LANG.lanIp),
-                  h('select', {
-                    className: 'dsh-pk-select',
-                    value: lanSelected,
-                    disabled: busy !== '',
-                    onChange: (event) => void action('set-lan', { address: event.target.value }),
-                  },
-                  h('option', { value: '' }, LANG.lanAuto),
-                  ...lanOptions.map((option) => h('option', {
-                    key: option.address,
-                    value: option.address,
-                  }, `${option.name}${option.virtual ? ` · ${LANG.lanVirtual}` : ''} · ${option.address}`))),
-                )
-                : null,
-              lan.length === 0
-                ? h('div', { className: 'dsh-pk-empty' }, LANG.noLan)
-                : lan.map((url, index) => h(UrlRow, { key: `${url}-${index}`, label: LANG.lan, url })),
-              h('div', { className: 'dsh-pk-note', style: { marginTop: '4px' } }, LANG.warning),
             ),
-            h('section', { className: 'dsh-pk-card' },
-              h('div', { className: 'dsh-pk-card-top' },
-                h('span', { className: 'dsh-pk-card-title' }, LANG.security),
+            h('section', { className: 'dsh-pk-security' },
+              h('div', { className: 'dsh-pk-security-main' },
+                h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'shield', size: 16 })),
+                h('div', { className: 'dsh-pk-card-heading' },
+                  h('span', { className: 'dsh-pk-card-title' }, LANG.securityCard),
+                  h('span', { className: 'dsh-pk-card-sub' }, LANG.tokenHint),
+                ),
+                h('code', { className: 'dsh-pk-token' }, `${String(status.token ?? '').slice(0, 6)}…${String(status.token ?? '').slice(-4)}`),
               ),
-              h('dl', { className: 'dsh-pk-kv' },
-                h('dt', null, LANG.token), h('dd', null, `${String(status.token ?? '').slice(0, 6)}…${String(status.token ?? '').slice(-4)}`),
-              ),
-              h('div', { className: 'dsh-pk-actions' },
-                h('button', { className: 'dsh-pk-btn danger', disabled: busy !== '', onClick: rotate }, LANG.rotate),
-              ),
+              h('button', { className: 'dsh-pk-btn danger', disabled: busy !== '', onClick: rotate }, LANG.rotate),
             ),
             error.length > 0 ? h('div', { className: 'dsh-pk-err' }, error) : null,
           ),
