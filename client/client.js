@@ -56,6 +56,9 @@ if (!alreadyRegistered()) {
         tunnelCardHint: 'Cloudflared 开箱即用；自有服务器走 SSH 反向转发。',
         connectCard: '手机连接',
         connectHint: '扫码即可打开 Pocket；链接内含访问令牌，请勿公开分享。',
+        qrPublicEmpty: '公网隧道未开启',
+        qrLanEmpty: '未发现局域网地址',
+        qrScan: '扫码打开',
         publicEntryHint: '选择手机从外网访问时使用的通道。',
         cloudflared: 'Cloudflared（默认）',
         cloudflaredShort: 'Cloudflared',
@@ -129,6 +132,9 @@ if (!alreadyRegistered()) {
         tunnelCardHint: 'Cloudflared works out of the box; the own-server relay uses SSH.',
         connectCard: 'Phone access',
         connectHint: 'Scan to open Pocket. The URL carries an access token; do not share it publicly.',
+        qrPublicEmpty: 'Public tunnel is offline',
+        qrLanEmpty: 'No LAN address found',
+        qrScan: 'Scan to open',
         publicEntryHint: 'Choose the route used to reach this DSH from outside the LAN.',
         cloudflared: 'Cloudflared (default)',
         cloudflaredShort: 'Cloudflared',
@@ -204,6 +210,8 @@ if (!alreadyRegistered()) {
 .dsh-pk-kv dd{margin:0;word-break:break-all;color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-mono,ui-monospace,Consolas,monospace)}
 .dsh-pk-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 11px;border-radius:var(--dsw-radius-md,8px);border:1px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-button-elevated-fill);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
 .dsh-pk-btn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-pk-btn.primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-inverted);filter:none;box-shadow:inset 0 0 0 2px var(--dsw-alias-border-l3)}
+.dsh-pk-btn.primary:active:not(:disabled){background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-inverted);box-shadow:inset 0 0 0 2px var(--dsw-alias-border-l3)}
 .dsh-pk-btn:disabled{opacity:.45;cursor:default}
 .dsh-pk-btn.primary{background:var(--dsw-alias-button-primary-fill);border-color:transparent;color:var(--dsw-alias-label-primary-inverted)}
 .dsh-pk-btn.danger{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
@@ -293,6 +301,14 @@ if (!alreadyRegistered()) {
 .dsh-pk-qr-wrap img{width:160px;height:160px;display:block;border-radius:8px;background:#fff;padding:5px}
 .dsh-pk-qr-caption{font-size:10.5px;color:var(--dsw-alias-label-caption)}
 .dsh-pk-qr-wrap.empty{width:160px;min-height:160px;border-style:dashed;color:var(--dsw-alias-label-caption);font-size:11px;text-align:center;line-height:1.5}
+.dsh-pk-qr-group{display:flex;gap:12px;flex:none;flex-wrap:wrap}
+.dsh-pk-qr-card{width:178px;flex:none;display:flex;flex-direction:column;align-items:center;gap:7px;padding:9px 9px 8px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1)}
+.dsh-pk-qr-card-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.dsh-pk-qr-card-label{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary)}
+.dsh-pk-qr-badge{font-size:9.5px;color:var(--dsw-alias-label-caption);border:1px solid var(--dsw-alias-border-l2);border-radius:999px;padding:1px 6px;line-height:1.5}
+.dsh-pk-qr-card img{width:158px;height:158px;display:block;border-radius:8px;background:#fff;padding:5px}
+.dsh-pk-qr-empty{width:158px;height:158px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;border:1px dashed var(--dsw-alias-border-l3);border-radius:8px;color:var(--dsw-alias-label-caption);font-size:10.5px;text-align:center;line-height:1.45;padding:8px}
+.dsh-pk-qr-host{max-width:100%;font-family:var(--dsw-font-mono,ui-monospace,Consolas,monospace);font-size:10px;color:var(--dsw-alias-label-caption);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dsh-pk-links{flex:1;min-width:220px}
 .dsh-pk-links .dsh-pk-note{margin-top:6px}
 .dsh-pk-security{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-2)}
@@ -493,6 +509,30 @@ if (!alreadyRegistered()) {
         );
       }
 
+      function QrCard({ label, qr, emptyLabel }) {
+        let host = '';
+        if (qr?.url !== undefined) {
+          try {
+            host = new URL(qr.url).host;
+          } catch {
+            host = qr.url;
+          }
+        }
+        return h('div', { className: 'dsh-pk-qr-card' },
+          h('div', { className: 'dsh-pk-qr-card-head' },
+            h('span', { className: 'dsh-pk-qr-card-label' }, label),
+            qr?.image ? h('span', { className: 'dsh-pk-qr-badge' }, LANG.qrScan) : null,
+          ),
+          qr?.image
+            ? h('img', { src: qr.image, alt: label })
+            : h('div', { className: 'dsh-pk-qr-empty' },
+              h(LineIcon, { name: 'phone', size: 24 }),
+              h('span', null, emptyLabel),
+            ),
+          h('div', { className: 'dsh-pk-qr-host', title: qr?.url ?? '' }, qr?.image ? host : emptyLabel),
+        );
+      }
+
       function PocketPage() {
         const [status, setStatus] = useState(undefined);
         const [error, setError] = useState('');
@@ -579,6 +619,9 @@ if (!alreadyRegistered()) {
         const tone = statusTone(tunnel);
         const isStarting = tunnel.state === 'starting';
         const isOnline = tunnel.state === 'online';
+        const legacyQr = typeof status.qr?.image === 'string' ? { url: status.qr.url, image: status.qr.image } : null;
+        const publicQr = status.qr?.public ?? (isOnline ? legacyQr : null);
+        const lanQr = status.qr?.lan ?? (isOnline ? null : legacyQr);
         const providerName = tunnel.provider === 'cloudflared'
           ? LANG.cloudflaredShort
           : tunnel.provider === 'ssh'
@@ -727,15 +770,10 @@ if (!alreadyRegistered()) {
                 isOnline ? h(StatusPill, { tone: 'on', label: LANG.online }) : null,
               ),
               h('div', { className: 'dsh-pk-connect' },
-                status.qr?.image
-                  ? h('div', { className: 'dsh-pk-qr-wrap' },
-                    h('img', { src: status.qr.image, alt: LANG.qrTitle }),
-                    h('span', { className: 'dsh-pk-qr-caption' }, LANG.qrTitle),
-                  )
-                  : h('div', { className: 'dsh-pk-qr-wrap empty' },
-                    h(LineIcon, { name: 'phone', size: 30 }),
-                    h('span', null, LANG.noLan),
-                  ),
+                h('div', { className: 'dsh-pk-qr-group' },
+                  h(QrCard, { label: LANG.public, qr: publicQr, emptyLabel: LANG.qrPublicEmpty }),
+                  h(QrCard, { label: LANG.lan, qr: lanQr, emptyLabel: LANG.qrLanEmpty }),
+                ),
                 h('div', { className: 'dsh-pk-links' },
                   h(UrlRow, { label: LANG.local, url: urls.local }),
                   isOnline ? h(UrlRow, { label: LANG.public, url: urls.publicUrl }) : null,
