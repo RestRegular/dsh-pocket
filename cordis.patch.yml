@@ -13,8 +13,8 @@
         lan: true
         # auto = 依次尝试 cloudflared → localtunnel → localhost.run
         tunnel: auto
-        # 自有服务器转发示例（把 tunnel 改成 ssh 并取消以下注释）：
-        # sshHost: 106.55.38.48
+        # 自有服务器转发示例（把 tunnel 改成 ssh 并取消以下注释；IP 仅为文档示例）：
+        # sshHost: 203.0.113.10
         # sshUser: root
         # sshKeyPath: ~/.ssh/id_ed25519
         # sshRemotePort: 8790

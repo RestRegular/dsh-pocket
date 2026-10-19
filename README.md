@@ -69,7 +69,7 @@ D:\DeepseekHarnessProjects\dsh-pocket
 
 ```yaml
 tunnel: ssh
-sshHost: 106.55.38.48
+sshHost: 203.0.113.10
 sshUser: root
 sshKeyPath: ~/.ssh/id_ed25519
 sshPort: 22
