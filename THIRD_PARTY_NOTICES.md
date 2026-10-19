@@ -21,3 +21,7 @@ The optional dependency `agentroam-cloudflared-win32-x64` (MIT packaging) ships 
 ## localtunnel
 
 The plugin can invoke a system-installed `lt` command. `localtunnel` is licensed under MIT and is not bundled here.
+
+## ws
+
+The Host service uses [`ws`](https://github.com/websockets/ws) (MIT) for the mobile WebSocket transport. It is installed as a normal npm dependency and is not vendored.

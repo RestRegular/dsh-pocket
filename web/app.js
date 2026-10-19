@@ -151,8 +151,31 @@ const ICONS = {
   stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5a3.5 3.5 0 0 1-3.5 3.5H9l-4 3v-3.6A3.5 3.5 0 0 1 4 14.5v-6A3.5 3.5 0 0 1 7.5 5h9A3.5 3.5 0 0 1 20 8.5Z"/></svg>',
   tool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5a4 4 0 0 0 5 5L10 21l-3-3 9.5-9.5Z"/><path d="M6 6h.01"/></svg>',
+  terminal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m7 9 3.2 3L7 15"/><path d="M12.5 15H17"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5A1.5 1.5 0 0 1 6.5 3.5Z"/><path d="M14 3.5V8h4.5"/></svg>',
+  web: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.3 3.7 5.3 3.7 8.5S14.4 18.2 12 20.5C9.6 18.2 8.3 15.2 8.3 12S9.6 5.8 12 3.5Z"/></svg>',
+  agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3.5V7"/><circle cx="9" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r="1" fill="currentColor" stroke="none"/><path d="M9.5 16.5h5"/></svg>',
+  spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="m18.5 15 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17Z"/></svg>',
+  archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="5" rx="1.5"/><path d="M5 9.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V9.5"/><path d="M10 13.5h4"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5h6l-.8 5.2 3.3 3.3H6.5l3.3-3.3L9 4.5Z"/><path d="M12 13v7"/></svg>',
   dot: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>',
 };
+
+/**
+ * 按工具名挑一个更贴题的图标。
+ * @param {string | undefined} name
+ * @returns {string}
+ */
+function toolIcon(name) {
+  const value = String(name ?? '').toLowerCase();
+  if (/(bash|pwsh|shell|terminal|job|exec)/u.test(value)) return ICONS.terminal;
+  if (/(read|write|edit|glob|grep|fs|present|deliver)/u.test(value)) return ICONS.file;
+  if (/(web|fetch|search|browse)/u.test(value)) return ICONS.web;
+  if (/(subagent|agent|team|spawn)/u.test(value)) return ICONS.agent;
+  if (/(skill|memory|goal|plan|todo)/u.test(value)) return ICONS.spark;
+  return ICONS.tool;
+}
 
 /* -------------------------------------------------------------------------- */
 /* Markdown（先转义，再做最小语法）                                             */
@@ -257,6 +280,11 @@ function renderMarkdown(source) {
 const state = {
   view: 'list',
   sessions: [],
+  workspaces: [],
+  unassigned: [],
+  archived: [],
+  counts: { total: 0, workspaces: 0, archived: 0 },
+  showArchived: localStorage.getItem('dsh_pocket_show_archived') === '1',
   filter: '',
   connected: true,
   listTimer: undefined,
@@ -324,13 +352,26 @@ function renderShell() {
           <div class="brand-sub" id="list-sub">正在读取会话…</div>
         </div>
       </div>
+      <button class="iconbtn${state.showArchived ? ' active' : ''}" id="archived-toggle" title="${state.showArchived ? '隐藏已归档会话' : '显示已归档会话'}" aria-label="已归档">${ICONS.archive}</button>
       <button class="iconbtn" id="refresh" title="刷新">${ICONS.refresh}</button>
     </header>
     <div class="list-scroll" id="list-scroll">
-      <div class="search">${ICONS.search}<input id="search" placeholder="搜索会话标题或目录" autocomplete="off"></div>
+      <div class="search">${ICONS.search}<input id="search" placeholder="搜索会话、工作区或目录" autocomplete="off"></div>
       <div id="session-list"></div>
     </div>
     <button class="fab" id="new-session" title="新建会话">${ICONS.plus}</button>`;
+}
+
+/**
+ * 把宿主返回的分组数据写入本地状态。
+ * @param {any} payload
+ */
+function applySessionPayload(payload) {
+  state.sessions = Array.isArray(payload.items) ? payload.items : [];
+  state.workspaces = Array.isArray(payload.workspaces) ? payload.workspaces : [];
+  state.unassigned = Array.isArray(payload.unassigned) ? payload.unassigned : [];
+  state.archived = Array.isArray(payload.archived) ? payload.archived : [];
+  state.counts = payload.counts ?? { total: state.sessions.length, workspaces: state.workspaces.length, archived: state.archived.length };
 }
 
 async function loadSessions(options = {}) {
@@ -344,17 +385,10 @@ async function loadSessions(options = {}) {
   }
   try {
     const payload = await api('/api/sessions');
-    state.sessions = Array.isArray(payload.items) ? payload.items : [];
+    applySessionPayload(payload);
     state.connected = true;
     renderShell();
-    document.querySelector('#refresh')?.addEventListener('click', () => loadSessions({ skeleton: false }));
-    const search = document.querySelector('#search');
-    search.value = state.filter;
-    search.addEventListener('input', () => {
-      state.filter = search.value.trim();
-      renderSessionList();
-    });
-    document.querySelector('#new-session')?.addEventListener('click', openNewSession);
+    bindListEvents();
     renderSessionList();
     stopListTimer();
     state.listTimer = setInterval(() => {
@@ -370,59 +404,145 @@ async function loadSessions(options = {}) {
   }
 }
 
+/** 列表工具栏的事件绑定（renderShell 重建后需要重新绑）。 */
+function bindListEvents() {
+  document.querySelector('#refresh')?.addEventListener('click', () => loadSessions({ skeleton: false }));
+  document.querySelector('#new-session')?.addEventListener('click', openNewSession);
+  document.querySelector('#archived-toggle')?.addEventListener('click', () => {
+    state.showArchived = !state.showArchived;
+    localStorage.setItem('dsh_pocket_show_archived', state.showArchived ? '1' : '0');
+    renderShell();
+    bindListEvents();
+    renderSessionList();
+  });
+  const search = document.querySelector('#search');
+  if (search !== null) {
+    search.value = state.filter;
+    search.addEventListener('input', () => {
+      state.filter = search.value.trim();
+      renderSessionList();
+    });
+  }
+}
+
 async function refreshSessionsQuietly() {
   try {
     const payload = await api('/api/sessions');
-    state.sessions = Array.isArray(payload.items) ? payload.items : [];
+    applySessionPayload(payload);
     state.connected = true;
     if (state.view === 'list') {
       renderSessionList();
-      const sub = document.querySelector('#list-sub');
-      if (sub !== null) sub.textContent = `本机 DSH · ${state.sessions.length} 个会话`;
     }
   } catch {
     state.connected = false;
   }
 }
 
+/**
+ * 会话行在搜索条件下的匹配。
+ * @param {any} row
+ * @param {string} filter
+ * @returns {boolean}
+ */
+function rowMatches(row, filter) {
+  if (filter.length === 0) return true;
+  return `${row.title ?? ''} ${row.cwd ?? ''}`.toLowerCase().includes(filter);
+}
+
+/**
+ * 渲染一个工作区分组。
+ * @param {{ kind: string, title: string, path?: string, sessions: any[] }} group
+ * @param {boolean} showPathInRows
+ * @returns {string}
+ */
+function renderWorkspaceGroup(group, showPathInRows) {
+  const icon = group.kind === 'archived' ? ICONS.archive : ICONS.folder;
+  const sessions = [...group.sessions].sort((left, right) => {
+    const pin = (right.pinned === true ? 1 : 0) - (left.pinned === true ? 1 : 0);
+    if (pin !== 0) return pin;
+    return (right.updatedAt ?? 0) - (left.updatedAt ?? 0);
+  });
+  let html = `
+    <div class="ws-head ws-${escapeHtml(group.kind)}">
+      <span class="ws-icon">${icon}</span>
+      <span class="ws-title">${escapeHtml(group.title)}</span>
+      <span class="ws-count">${sessions.length}</span>
+    </div>`;
+  if (typeof group.path === 'string' && group.path.length > 0) {
+    html += `<div class="ws-path" title="${escapeHtml(group.path)}">${escapeHtml(group.path)}</div>`;
+  }
+  if (sessions.length === 0) {
+    html += '<div class="ws-empty">暂无会话</div>';
+    return html;
+  }
+  for (const item of sessions) {
+    const pills = [
+      item.running === true ? '<span class="pill run">运行中</span>' : '',
+      item.pinned === true ? `<span class="pill pin">${ICONS.pin}置顶</span>` : '',
+      group.kind === 'archived' ? '<span class="pill arc">已归档</span>' : '',
+    ].filter(Boolean).join('');
+    const meta = showPathInRows
+      ? `<span class="session-meta"><span class="cwd">${escapeHtml(item.cwd || '未绑定目录')}</span></span>`
+      : '';
+    html += `
+      <button class="session${item.running === true ? ' running' : ''}${item.archived === true ? ' archived' : ''}" data-id="${escapeHtml(item.id)}">
+        <span class="session-icon">${ICONS.chat}</span>
+        <span class="session-main">
+          <span class="session-title"><span>${escapeHtml(item.title ?? '会话')}</span>${pills}</span>
+          ${meta}
+        </span>
+        <span class="session-time">${escapeHtml(relativeTime(item.updatedAt))}</span>
+      </button>`;
+  }
+  return html;
+}
+
 function renderSessionList() {
   const container = document.querySelector('#session-list');
   if (container === null) return;
   const sub = document.querySelector('#list-sub');
-  if (sub !== null) sub.textContent = `本机 DSH · ${state.sessions.length} 个会话`;
+  const nonArchived = Math.max(0, (state.counts.total ?? state.sessions.length) - (state.counts.archived ?? state.archived.length));
+  if (sub !== null) {
+    sub.textContent = `${nonArchived} 个会话 · ${state.workspaces.length} 个工作区${state.archived.length > 0 ? ` · ${state.archived.length} 个已归档` : ''}`;
+  }
 
   const filter = state.filter.toLowerCase();
-  const items = state.sessions.filter((item) => {
-    if (filter.length === 0) return true;
-    return `${item.title ?? ''} ${item.cwd ?? ''}`.toLowerCase().includes(filter);
-  });
+  const groups = [];
+  for (const workspace of state.workspaces) {
+    const workspaceText = `${workspace.title ?? ''} ${workspace.path ?? ''}`.toLowerCase();
+    const workspaceMatches = filter.length === 0 || workspaceText.includes(filter);
+    const sessions = (workspace.sessions ?? []).filter((row) => workspaceMatches || rowMatches(row, filter));
+    if (filter.length > 0 && sessions.length === 0) continue;
+    groups.push({
+      kind: 'workspace',
+      title: workspace.title ?? (workspace.path ?? '工作区'),
+      path: workspace.path,
+      sessions,
+    });
+  }
 
-  if (items.length === 0) {
-    container.innerHTML = `<div class="empty"><div class="big">${state.sessions.length === 0 ? '🫧' : '🔍'}</div><p>${state.sessions.length === 0 ? '还没有会话，点右下角新建一个。' : '没有匹配的会话。'}</p></div>`;
+  const unassigned = state.unassigned.filter((row) => rowMatches(row, filter));
+  if (unassigned.length > 0) {
+    groups.push({ kind: 'unassigned', title: '未分组', path: '', sessions: unassigned });
+  }
+
+  if (state.showArchived) {
+    const archived = state.archived.filter((row) => rowMatches(row, filter));
+    if (archived.length > 0) {
+      groups.push({ kind: 'archived', title: '已归档', path: '', sessions: archived });
+    }
+  }
+
+  const totalSessions = groups.reduce((sum, group) => sum + group.sessions.length, 0);
+  if (groups.length === 0 || totalSessions === 0) {
+    const empty = state.sessions.length === 0 && state.archived.length === 0;
+    container.innerHTML = `<div class="empty"><div class="big">${empty ? '🫧' : '🔍'}</div><p>${empty ? '还没有会话，点右下角新建一个。' : '没有匹配的会话。'}</p></div>`;
     return;
   }
 
   let html = '';
-  let lastGroup = '';
-  for (const item of items) {
-    const group = dayLabel(item.updatedAt);
-    if (group !== lastGroup) {
-      html += `<div class="group-label">${group}</div>`;
-      lastGroup = group;
-    }
-    const pills = [
-      item.running === true ? '<span class="pill run">运行中</span>' : '',
-      item.origin === 'subagent' ? '<span class="pill sub">子代理</span>' : '',
-    ].filter(Boolean).join('');
-    html += `
-      <button class="session${item.running === true ? ' running' : ''}" data-id="${escapeHtml(item.id)}">
-        <span class="session-icon">${ICONS.chat}</span>
-        <span class="session-main">
-          <span class="session-title"><span>${escapeHtml(item.title ?? '会话')}</span>${pills}</span>
-          <span class="session-meta"><span class="cwd">${escapeHtml(item.cwd || '未绑定目录')}</span></span>
-        </span>
-        <span class="session-time">${escapeHtml(relativeTime(item.updatedAt))}</span>
-      </button>`;
+  for (const group of groups) {
+    html += renderWorkspaceGroup(group, group.kind !== 'workspace');
   }
   container.innerHTML = html;
   for (const button of container.querySelectorAll('.session')) {
@@ -486,9 +606,16 @@ function closeChat() {
   const current = state.current;
   state.current = undefined;
   state.pendingTexts = [];
-  if (current?.source !== undefined) {
-    current.source.close();
-    current.source = undefined;
+  if (current !== undefined) {
+    clearTimeout(current.reconnectTimer);
+    if (current.source !== undefined) {
+      try {
+        current.source.close();
+      } catch {
+        /* ignore */
+      }
+      current.source = undefined;
+    }
   }
 }
 
@@ -502,14 +629,17 @@ function openChat(id) {
     meta: { sessionId: id, title: '会话', cwd: '', running: false },
     messages: [],
     toolResults: new Map(),
+    openTools: new Set(),
     seen: new Set(),
     minSeq: undefined,
     transient: undefined,
     running: false,
     hasMore: false,
     ready: false,
+    snapshotLoading: false,
     nearBottom: true,
     source: undefined,
+    reconnectTimer: undefined,
     renderFrame: 0,
   };
   renderChatShell();
@@ -565,6 +695,7 @@ function renderChatShell() {
     state.current.toolResults.clear();
     state.current.minSeq = undefined;
     state.current.ready = false;
+    state.current.snapshotLoading = true;
     renderMessages();
     connectStream(state.current.id);
   });
@@ -633,14 +764,21 @@ function scrollToBottom(force = false) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* SSE                                                                         */
+/* 会话流（WebSocket）                                                          */
 /* -------------------------------------------------------------------------- */
 
 function closeChatSource() {
   const current = state.current;
-  if (current?.source !== undefined) {
-    current.source.close();
-    current.source = undefined;
+  if (current === undefined) return;
+  clearTimeout(current.reconnectTimer);
+  const source = current.source;
+  current.source = undefined;
+  if (source !== undefined) {
+    try {
+      source.close();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -648,53 +786,79 @@ function connectStream(id) {
   const current = state.current;
   if (current === undefined || current.id !== id) return;
   closeChatSource();
-  const source = new EventSource(`/api/sessions/${encodeURIComponent(id)}/follow?token=${encodeURIComponent(token)}`);
-  current.source = source;
 
-  source.addEventListener('hello', (event) => {
-    if (state.current !== current) return;
-    try {
-      const meta = JSON.parse(event.data);
-      current.meta = { ...current.meta, ...meta, title: meta.title || current.meta.title };
-      current.running = meta.running === true;
-      state.connected = true;
-      updateChatHeader();
-    } catch {
-      /* ignore */
-    }
-  });
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  let socket;
+  try {
+    socket = new WebSocket(`${scheme}://${window.location.host}/ws/session/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`);
+  } catch (error) {
+    state.connected = false;
+    updateChatHeader();
+    toast(error.message ?? String(error));
+    return;
+  }
+  current.source = socket;
 
-  source.addEventListener('frame', (event) => {
-    if (state.current !== current) return;
-    let frame;
-    try {
-      frame = JSON.parse(event.data);
-    } catch {
-      return;
-    }
-    handleFrame(frame);
-  });
-
-  source.addEventListener('failed', (event) => {
-    if (state.current !== current) return;
-    try {
-      toast(JSON.parse(event.data).error ?? '会话流中断');
-    } catch {
-      toast('会话流中断');
-    }
-  });
-
-  source.onopen = () => {
+  socket.onopen = () => {
     if (state.current !== current) return;
     state.connected = true;
     updateChatHeader();
   };
-  source.onerror = () => {
+
+  socket.onmessage = (event) => {
+    if (state.current !== current) return;
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    switch (message.kind) {
+      case 'hello':
+        current.meta = { ...current.meta, ...message, title: message.title || current.meta.title };
+        current.running = message.running === true;
+        state.connected = true;
+        updateChatHeader();
+        break;
+      case 'snapshot-meta':
+        beginSnapshot(message);
+        break;
+      case 'snapshot-batch':
+        applySnapshotBatch(message);
+        break;
+      case 'snapshot-end':
+        endSnapshot();
+        break;
+      case 'frame':
+        handleFrame(message.frame);
+        break;
+      case 'failed':
+        toast(message.error ?? '会话流中断');
+        break;
+      default:
+        break;
+    }
+  };
+
+  socket.onerror = () => {
     if (state.current !== current) return;
     state.connected = false;
     updateChatHeader();
-    // 令牌被轮换时 EventSource 会无限重连；探一次状态以触发解锁页。
+  };
+
+  socket.onclose = () => {
+    if (state.current !== current || current.source !== socket) return;
+    current.source = undefined;
+    state.connected = false;
+    updateChatHeader();
+    // 令牌轮换后 WebSocket 会一直失败；探一次状态以触发解锁页。
     void api('/api/status').catch(() => {});
+    clearTimeout(current.reconnectTimer);
+    if (state.view === 'chat' && state.current === current) {
+      current.reconnectTimer = setTimeout(() => {
+        if (state.current === current && current.source === undefined) connectStream(id);
+      }, 1500);
+    }
   };
 }
 
@@ -717,6 +881,43 @@ function handleFrame(frame) {
   }
 }
 
+/** 开始接收一次新的历史快照。 */
+function beginSnapshot(meta) {
+  const current = state.current;
+  if (current === undefined) return;
+  current.messages = [];
+  current.toolResults = new Map();
+  current.seen.clear();
+  current.minSeq = undefined;
+  current.transient = undefined;
+  current.hasMore = meta?.hasMore === true;
+  current.ready = false;
+  current.snapshotLoading = true;
+  renderMessages();
+}
+
+/** 追加一批历史记录；边收边渲染，避免手机长时间白屏。 */
+function applySnapshotBatch(payload) {
+  const current = state.current;
+  if (current === undefined) return;
+  for (const record of payload?.records ?? []) {
+    if (record?.type === 'event') applyEvent(record.event, current);
+  }
+  current.snapshotLoading = false;
+  renderMessages();
+}
+
+/** 历史快照接收完毕。 */
+function endSnapshot() {
+  const current = state.current;
+  if (current === undefined) return;
+  current.snapshotLoading = false;
+  current.ready = true;
+  renderMessages();
+  renderTransient();
+  scrollToBottom(true);
+}
+
 function applySnapshot(frame) {
   const current = state.current;
   if (current === undefined) return;
@@ -727,6 +928,7 @@ function applySnapshot(frame) {
   current.transient = undefined;
   current.hasMore = frame.hasMore === true;
   current.ready = true;
+  current.snapshotLoading = false;
   for (const record of frame.records ?? []) {
     if (record?.type === 'event') applyEvent(record.event, current);
   }
@@ -912,7 +1114,11 @@ function renderMessages() {
   }
 
   if (current.messages.length === 0) {
-    fragment.appendChild(el('div', 'empty', '<div class="big">🫧</div><p>这个会话还没有消息。发第一条吧。</p>'));
+    if (current.snapshotLoading === true) {
+      fragment.appendChild(el('div', 'empty', '<div class="boot-logo" style="margin:0 auto 12px"></div><p>正在加载历史记录…</p>'));
+    } else {
+      fragment.appendChild(el('div', 'empty', '<div class="big">🫧</div><p>这个会话还没有消息。发第一条吧。</p>'));
+    }
   }
 
   const slot = el('div');
@@ -1012,16 +1218,77 @@ function reasoningNode(text) {
   return details;
 }
 
+/**
+ * 解析工具参数 JSON；失败时返回 undefined。
+ * @param {any} call
+ * @returns {any | undefined}
+ */
+function toolArguments(call) {
+  try {
+    const value = JSON.parse(call?.arguments ?? '');
+    return value !== null && typeof value === 'object' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 把多行文本压成一行并截断。
+ * @param {string} value
+ * @param {number} limit
+ * @returns {string}
+ */
+function oneLine(value, limit) {
+  const line = String(value ?? '').split(/\r?\n/u)[0].replace(/\s+/gu, ' ').trim();
+  return line.length > limit ? `${line.slice(0, limit - 1)}…` : line;
+}
+
+/**
+ * 工具折叠标题里的摘要：优先取命令/路径/查询，最后退回参数首行。
+ * @param {any} call
+ * @param {any} result
+ * @returns {string}
+ */
+function toolSummary(call, result) {
+  const args = toolArguments(call);
+  const pick = (keys) => {
+    if (args === undefined) return undefined;
+    for (const key of keys) {
+      const value = args[key];
+      if (typeof value === 'string' && value.trim().length > 0) return value;
+    }
+    return undefined;
+  };
+  const command = pick(['command', 'cmd', 'script', 'commandLine']);
+  if (command !== undefined) return oneLine(command, 84);
+  const path = pick(['path', 'file_path', 'filePath', 'file', 'directory', 'target', 'cwd']);
+  if (path !== undefined) return oneLine(path, 84);
+  const query = pick(['query', 'pattern', 'url', 'name', 'description', 'prompt', 'goal', 'text']);
+  if (query !== undefined) return oneLine(query, 84);
+  const raw = String(call?.arguments ?? '').trim();
+  if (raw.length > 0) return oneLine(raw, 84);
+  if (result !== undefined) {
+    const text = blocksText(result.blocks).trim();
+    if (text.length > 0) return oneLine(text, 84);
+  }
+  return '点击展开详情';
+}
+
 function toolNode(call, result, time) {
-  const node = el('div', 'tool');
-  const head = el('div', 'tool-head');
-  head.appendChild(el('span', 'tool-icon', ICONS.tool));
+  const node = el('details', 'tool');
+  const head = el('summary', 'tool-head');
+  head.appendChild(el('span', 'tool-icon', toolIcon(call.name)));
   const name = el('span', 'tool-name');
   name.textContent = call.name || 'tool';
   head.appendChild(name);
+  const summary = el('span', 'tool-summary');
+  summary.textContent = toolSummary(call, result);
+  summary.title = summary.textContent;
+  head.appendChild(summary);
   const stateNode = el('span', `tool-state ${result?.isError === true ? 'err' : result !== undefined ? 'ok' : 'run'}`);
   stateNode.textContent = result?.isError === true ? '失败' : result !== undefined ? '完成' : '运行中';
   head.appendChild(stateNode);
+  head.appendChild(el('span', 'tool-caret', '›'));
   node.appendChild(head);
 
   const body = el('div', 'tool-body');
@@ -1036,6 +1303,16 @@ function toolNode(call, result, time) {
     body.appendChild(el('pre', '', escapeHtml(text.length > 0 ? text : '（无文本输出）')));
   }
   node.appendChild(body);
+
+  // 折叠状态按 callId 记住，SSE 重绘时不会把用户展开的卡片收回去。
+  const id = typeof call.id === 'string' ? call.id : '';
+  const openTools = state.current?.openTools;
+  if (id.length > 0 && openTools?.has(id) === true) node.open = true;
+  node.addEventListener('toggle', () => {
+    if (id.length === 0 || state.current?.openTools === undefined) return;
+    if (node.open) state.current.openTools.add(id);
+    else state.current.openTools.delete(id);
+  });
   return node;
 }
 

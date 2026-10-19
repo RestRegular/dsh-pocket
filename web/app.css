@@ -73,6 +73,7 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--dim);
 }
 .iconbtn:hover, .iconbtn:active { background: var(--card-2); color: var(--text); }
+.iconbtn.active { background: var(--accent-soft); color: var(--accent); }
 .iconbtn svg { width: 19px; height: 19px; }
 .iconbtn.busy svg { animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -98,6 +99,27 @@ a { color: var(--accent); text-decoration: none; }
 
 .group-label { display: flex; align-items: center; gap: 8px; padding: 12px 6px 7px; font-size: 11px; letter-spacing: .06em; color: var(--faint); text-transform: uppercase; }
 .group-label::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+
+/* 工作区分组（与桌面侧栏的 workspace 结构对应） */
+.ws-head {
+  display: flex; align-items: center; gap: 7px;
+  padding: 16px 6px 3px;
+  min-width: 0;
+}
+.ws-icon { width: 15px; height: 15px; color: var(--faint); flex: none; display: flex; align-items: center; justify-content: center; }
+.ws-icon svg { width: 15px; height: 15px; }
+.ws-title { font-size: 12px; font-weight: 650; color: var(--dim); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-count { font-size: 10.5px; color: var(--faint); background: var(--card); border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 6px; line-height: 16px; flex: none; }
+.ws-path { padding: 0 6px 6px 28px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-empty { padding: 2px 8px 8px 28px; font-size: 12px; color: var(--faint); }
+.ws-archived .ws-title { color: var(--faint); }
+.ws-archived .ws-icon { color: var(--faint); }
+.ws-unassigned .ws-title { color: var(--faint); }
+
+.session.archived { opacity: .62; }
+.pill.pin, .pill.arc { display: inline-flex; align-items: center; gap: 3px; }
+.pill.pin svg { width: 10px; height: 10px; }
+.pill.pin { color: #9fc0ff; border-color: rgba(79,140,255,.3); background: var(--accent-soft); }
 
 .session {
   display: flex; align-items: flex-start; gap: 11px;
@@ -224,17 +246,27 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--card);
   overflow: hidden;
 }
+.tool[open] { border-color: var(--line); }
 .tool-head {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 11px;
   font-size: 12.5px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
 }
+.tool-head::-webkit-details-marker { display: none; }
+.tool-head:hover { background: rgba(255, 255, 255, .025); }
 .tool-icon { width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); flex: none; font-size: 12px; }
-.tool-name { font-family: var(--mono); font-weight: 600; color: #cfe0ff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tool-state { margin-left: auto; font-size: 10.5px; color: var(--faint); flex: none; }
+.tool-icon svg { width: 13px; height: 13px; display: block; }
+.tool-name { font-family: var(--mono); font-weight: 600; color: #cfe0ff; flex: none; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-summary { flex: 1; min-width: 0; color: var(--faint); font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-state { font-size: 10.5px; color: var(--faint); flex: none; }
 .tool-state.run { color: var(--amber); }
 .tool-state.ok { color: var(--green); }
 .tool-state.err { color: var(--red); }
+.tool-caret { flex: none; color: var(--faint); font-size: 15px; line-height: 1; transform: rotate(0deg); transition: transform .15s ease; }
+.tool[open] .tool-caret { transform: rotate(90deg); }
 .tool-body { border-top: 1px solid var(--line-soft); padding: 6px 10px 9px; }
 .tool-body pre {
   margin: 0; padding: 7px 9px;
@@ -246,8 +278,6 @@ a { color: var(--accent); text-decoration: none; }
   color: #b9c6da;
 }
 .tool-label { font-size: 10px; letter-spacing: .05em; color: var(--faint); text-transform: uppercase; padding: 3px 1px 4px; }
-.tool details > summary { list-style: none; cursor: pointer; }
-.tool details > summary::-webkit-details-marker { display: none; }
 
 .transient { opacity: .96; }
 .transient .caret { display: inline-block; width: 7px; height: 15px; margin-left: 2px; vertical-align: -2px; background: var(--accent); border-radius: 1px; animation: caret 1s steps(2) infinite; }

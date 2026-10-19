@@ -3,12 +3,13 @@
 把本机的 DeepSeek Harness 装进口袋：起一个独立的移动端 Web 服务，按需拉起内外网隧道；手机浏览器打开后可以查看会话、实时输出和工具调用，也能反向发送指令、停止当前回合。
 
 - **独立移动页面**：不是把桌面 GUI 硬塞进手机，而是为窄屏重写的会话列表 + 聊天流。
-- **流式输出**：SSE 跟进 `sessionController.follow`，助手文本、思考过程、工具调用与结果实时出现。
-- **反向控制**：发送提示词（空闲时立即执行，运行中进入队列）、停止当前回合、新建会话。
+- **与桌面一致的工作区视图**：按 `workspaceController` 的工作区顺序和会话归属分组；默认隐藏已归档会话，顶部一键切换显示。
+- **流式输出**：WebSocket 跟进 `sessionController.follow`，助手文本、思考过程、工具调用与结果实时出现。历史快照分批推送，手机边收边渲染。
+- **反向控制**：发送提示词（空闲时立即执行，运行中进入队列）、停止当前回合、新建会话（自动挂到对应工作区）。
 - **三种隧道**：`cloudflared`（Quick Tunnel，无浏览器拦截页）、`localtunnel`、`localhost.run`；也可以填自定义命令或固定的 `publicUrl`。
 - **扫码即用**：桌面面板生成带令牌的二维码，手机相机一扫就打开。
 - **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
-- **零运行时依赖**：宿主、移动页面和面板全部是原生 ESM；二维码编码器随包内嵌。
+- **轻量依赖**：一个 `ws`（WebSocket 服务端），二维码编码器随包内嵌；宿主和移动页面其余部分都是原生 ESM。
 
 | 会话列表 | 聊天与工具卡片 | 桌面面板 |
 | --- | --- | --- |
@@ -66,11 +67,12 @@ D:\DeepseekHarnessProjects\dsh-pocket
 
 ## 移动端能力
 
-- 会话列表：标题、工作目录、运行状态、最近活动时间；搜索；下拉刷新按钮。
+- 会话列表：按工作区分组（顺序与桌面侧栏一致）、标题、运行状态、最新活动时间；顶部按钮切换是否显示已归档会话（记住选择）；搜索会话/工作区/目录。
 - 聊天流：用户/助手消息、Markdown、代码块、思考过程折叠、工具调用参数与结果、token 用量。
+- 工具卡片：默认折叠，标题里显示自动截断的命令/路径/查询摘要；点开看完整参数与结果，展开状态在流式重绘时保持。
 - 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。
-- 新建会话：可填绝对工作目录，留空用 DSH 默认目录。
-- 历史翻页：顶部「加载更早的消息」；工具输出超过 20 KB 会在隧道侧截断，完整内容回桌面端看。
+- 新建会话：可填绝对工作目录，留空用 DSH 默认目录；新建后自动挂到对应工作区。
+- 历史翻页：顶部「加载更早的消息」。
 
 ## HTTP 接口
 
@@ -79,10 +81,11 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/` | 移动页面（无令牌时显示解锁页）。 |
-| GET | `/api/sessions` | 会话列表。 |
+| GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组。 |
 | POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
 | GET | `/api/sessions/:id` | 标题、目录、运行状态。 |
-| GET | `/api/sessions/:id/follow` | SSE：`hello` + `snapshot` + 事件帧 + assistant-stream。 |
+| WS | `/ws/session/:id?token=...` | 手机端使用的会话流：`hello`、`snapshot-meta` / `snapshot-batch` / `snapshot-end`、`frame`。 |
+| GET | `/api/sessions/:id/follow` | SSE 版本，保留给 curl/调试；注意部分隧道会缓冲 SSE 响应。 |
 | GET | `/api/sessions/:id/page?throughSeq=&beforeSeq=` | 历史翻页。 |
 | POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "queue" \| "steer" }`。 |
 | POST | `/api/sessions/:id/cancel` | 停止当前回合。 |
@@ -98,7 +101,7 @@ D:\DeepseekHarnessProjects\dsh-pocket
 - **子代理会话**：移动列表只列普通会话，子代理（`origin: subagent`）不单独展示。
 - **模型选择 / 预设切换**：沿用会话现有设置，手机端不提供切换。
 - **图片上传**：可以查看会话里的图片，暂不支持从手机发图。
-- **归档会话**：列表暂未过滤已归档会话。
+- **置顶**：置顶会话会在工作区内排到最前并显示标记，但没有单独的「置顶」分组。
 - **PWA 离线**：有 manifest，但没有 Service Worker 离线缓存。
 
 ## 开发
@@ -109,12 +112,16 @@ node --check lib\server.js
 node --check lib\tunnel.js
 node --check web\app.js
 node --check client\client.js
-pnpm install   # 仅为本目录拉取 Windows x64 的可选 cloudflared 二进制
+pnpm install   # 拉取 ws，以及 Windows x64 的可选 cloudflared 二进制
 ```
 
-- 宿主：`lib/index.js` 负责配置、生命周期与桌面面板路由；`lib/server.js` 是移动 HTTP/SSE 服务；`lib/tunnel.js` 管理隧道子进程。
+- 宿主：`lib/index.js` 负责配置、生命周期与桌面面板路由；`lib/server.js` 是移动 HTTP/WS 服务；`lib/tunnel.js` 管理隧道子进程。
 - 移动页面：`web/`（原生 ESM，无构建）。
 - 桌面面板：`client/client.js`，注册 `sidebar.panellist` 与 `main` 两个 slot。
+
+### 为什么用 WebSocket 而不是 SSE
+
+Cloudflare Quick Tunnel 会缓冲小的 SSE 响应：手机打开会话时历史快照迟迟不落地，直到用户发送一条消息把缓冲区推过阈值，历史才突然出现。把历史拆成 `snapshot-meta` / `snapshot-batch` / `snapshot-end` 并改走 WebSocket 后，快照和实时帧都能立即到达；`/api/sessions/:id/follow` 的 SSE 版本仍保留给 curl 调试。
 
 ### 一个踩过的坑
 

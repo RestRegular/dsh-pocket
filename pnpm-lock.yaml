@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
     optionalDependencies:
       agentroam-cloudflared-win32-x64:
         specifier: 0.2.0-preview.18
@@ -19,7 +23,21 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
 snapshots:
 
   agentroam-cloudflared-win32-x64@0.2.0-preview.18:
     optional: true
+
+  ws@8.22.0: {}
