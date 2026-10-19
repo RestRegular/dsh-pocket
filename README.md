@@ -5,7 +5,8 @@
 - **独立移动页面**：不是把桌面 GUI 硬塞进手机，而是为窄屏重写的会话列表 + 聊天流。
 - **与桌面一致的工作区视图**：按 `workspaceController` 的工作区顺序和会话归属分组；默认隐藏已归档会话，顶部一键切换显示。
 - **流式输出**：WebSocket 跟进 `sessionController.follow`，助手文本、思考过程、工具调用与结果实时出现。历史快照分批推送，手机边收边渲染。
-- **反向控制**：发送提示词（空闲时立即执行，运行中进入队列）、停止当前回合、新建会话（自动挂到对应工作区）。
+- **反向控制**：发送提示词、停止当前回合、新建会话（自动挂到对应工作区）。
+- **繁忙发送**：手机发送时读取桌面 `ui-conversation.busyEnter` 设置；空闲时正常发送，运行中按设置选择「排队发送」或「插话发送」。
 - **会话设置**：手机里切换模型与思考等级、选择权限预置、插入 `/技能` 引用；设置入口在输入框上方的滑杆按钮。
 - **图片消息**：从相册选择最多 4 张图片随消息发送；Markdown 图片和表格可在聊天流里正常渲染。
 - **提问与审批**：手机在线时接管 `user-questions/request` 与 `approval/request` waterfall；前台阻塞提问可直接作答，工具审批可选择「允许一次 / 拒绝」。continued 提问仍从投影显示。手机离线时自动回落到桌面 answerer。
@@ -90,7 +91,7 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | WS | `/ws/session/:id?token=...` | 手机端使用的会话流：`hello`、`snapshot-meta` / `snapshot-batch` / `snapshot-end`、`frame`；以及 `question-request` / `approval-request` / `interaction-closed` 前台交互。 |
 | GET | `/api/sessions/:id/follow` | SSE 版本，保留给 curl/调试；注意部分隧道会缓冲 SSE 响应。 |
 | GET | `/api/sessions/:id/page?throughSeq=&beforeSeq=` | 历史翻页。 |
-| POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "queue" \| "steer", "images": [{ "mediaType", "data", "name" }] }`。 |
+| POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "auto" \| "queue" \| "steer", "images": [{ "mediaType", "data", "name" }] }`；`auto` 在运行中读取桌面 `busyEnter`。 |
 | POST | `/api/sessions/:id/cancel` | 停止当前回合。 |
 | GET | `/api/sessions/:id/controls` | 模型目录/当前选择、权限目录/当前预设、用户可见技能。 |
 | POST | `/api/sessions/:id/model` | `{ "provider", "model", "reasoningEffort" }`。 |

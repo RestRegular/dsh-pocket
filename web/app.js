@@ -2227,7 +2227,7 @@ async function sendMessage() {
       method: 'POST',
       body: JSON.stringify({
         text,
-        mode: 'queue',
+        mode: 'auto',
         images: images.map((image) => ({
           mediaType: image.mediaType,
           data: image.data,
