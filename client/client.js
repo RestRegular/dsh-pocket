@@ -48,15 +48,20 @@ if (!alreadyRegistered()) {
         tunnelOnline: '已连通',
         tunnelError: '建立失败',
         provider: '通道',
+        publicEntry: '公网入口',
+        cloudflared: 'Cloudflared（默认）',
+        ownServer: '自有服务器',
+        serverAddress: '服务器 IP / 域名',
+        switchTunnel: '切换',
+        switching: '切换中…',
+        serverRequired: '请填写服务器 IP 或域名',
+        sshHint: '自有服务器默认走 HTTP；令牌会明文传输，生产建议配置 HTTPS 反向代理。',
         start: '启动隧道',
         stop: '停止',
         restart: '重新建立',
         addresses: '访问地址',
         local: '本机',
         lan: '局域网',
-        lanIp: '局域网 IP',
-        lanAuto: '自动（第一个可用）',
-        lanVirtual: '虚拟网卡',
         public: '公网',
         noLan: '未发现局域网地址',
         copy: '复制',
@@ -94,15 +99,20 @@ if (!alreadyRegistered()) {
         tunnelOnline: 'Online',
         tunnelError: 'Failed',
         provider: 'Provider',
+        publicEntry: 'Public entry',
+        cloudflared: 'Cloudflared (default)',
+        ownServer: 'Own server',
+        serverAddress: 'Server IP / hostname',
+        switchTunnel: 'Switch',
+        switching: 'Switching…',
+        serverRequired: 'Enter a server IP or hostname',
+        sshHint: 'The own-server relay uses plain HTTP by default; the token crosses the network in clear text. Use HTTPS behind a reverse proxy in production.',
         start: 'Start tunnel',
         stop: 'Stop',
         restart: 'Restart',
         addresses: 'Access URLs',
         local: 'Local',
         lan: 'LAN',
-        lanIp: 'LAN IP',
-        lanAuto: 'Auto (first available)',
-        lanVirtual: 'virtual adapter',
         public: 'Public',
         noLan: 'No LAN address found',
         copy: 'Copy',
@@ -154,13 +164,14 @@ if (!alreadyRegistered()) {
 .dsh-pk-btn.primary{background:var(--dsw-alias-button-primary-fill);border-color:transparent;color:var(--dsw-alias-label-primary-inverted)}
 .dsh-pk-btn.danger{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
 .dsh-pk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.dsh-pk-field{display:flex;flex-direction:column;gap:5px;margin-top:12px}
+.dsh-pk-label{font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.dsh-pk-select,.dsh-pk-input{width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;outline:none}
+.dsh-pk-select:focus,.dsh-pk-input:focus{border-color:var(--dsw-alias-border-l3)}
+.dsh-pk-input::placeholder{color:var(--dsw-alias-label-caption)}
 .dsh-pk-url{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);margin-bottom:8px;min-width:0}
 .dsh-pk-url-label{flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary);width:40px}
 .dsh-pk-url-text{flex:1;min-width:0;font-family:var(--dsw-font-mono,ui-monospace,Consolas,monospace);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dsw-alias-label-secondary)}
-.dsh-pk-lanpick{display:flex;align-items:center;gap:8px;margin:0 0 10px;min-width:0}
-.dsh-pk-lanpick-label{flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary)}
-.dsh-pk-select{flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;outline:none}
-.dsh-pk-select:focus{border-color:var(--dsw-alias-border-l4)}
 .dsh-pk-empty{color:var(--dsw-alias-label-caption);font-size:12px;padding:4px 0}
 .dsh-pk-note{border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary)}
 .dsh-pk-err{color:var(--dsw-alias-state-error-primary);word-break:break-word;font-size:12px;margin-top:6px}
@@ -259,7 +270,15 @@ if (!alreadyRegistered()) {
         const [error, setError] = useState('');
         const [busy, setBusy] = useState('');
         const [toast, setToast] = useState('');
+        const [provider, setProvider] = useState('cloudflared');
+        const [sshHost, setSshHost] = useState('');
         const timer = useRef(0);
+
+        useEffect(() => {
+          if (status === undefined) return;
+          setProvider(status.tunnel?.mode === 'ssh' ? 'ssh' : 'cloudflared');
+          setSshHost(typeof status.tunnel?.sshHost === 'string' ? status.tunnel.sshHost : '');
+        }, [status?.tunnel?.mode, status?.tunnel?.sshHost]);
 
         const refresh = useCallback(async () => {
           try {
@@ -303,6 +322,15 @@ if (!alreadyRegistered()) {
           void action('rotate-token');
         };
 
+        const switchProvider = () => {
+          if (provider === 'ssh' && sshHost.trim().length === 0) {
+            setError(LANG.serverRequired);
+            return;
+          }
+          setError('');
+          void action('switch-tunnel', { provider, sshHost: sshHost.trim() });
+        };
+
         if (status === undefined) {
           return h('div', { className: 'dsh-pk' },
             h('div', { className: 'dsh-pk-head' },
@@ -318,8 +346,6 @@ if (!alreadyRegistered()) {
         const tunnel = status.tunnel ?? { state: 'off', log: [] };
         const urls = status.server?.urls ?? { local: '', lan: [] };
         const lan = Array.isArray(urls.lan) ? urls.lan : [];
-        const lanOptions = Array.isArray(urls.lanOptions) ? urls.lanOptions : [];
-        const lanSelected = typeof urls.lanSelected === 'string' ? urls.lanSelected : '';
         const tone = statusTone(tunnel);
         const isStarting = tunnel.state === 'starting';
         const isOnline = tunnel.state === 'online';
@@ -356,6 +382,35 @@ if (!alreadyRegistered()) {
                   h('dt', null, LANG.provider), h('dd', null, tunnel.provider ?? '-'),
                 ),
                 tunnel.error !== undefined ? h('div', { className: 'dsh-pk-err' }, tunnel.error) : null,
+                h('div', { className: 'dsh-pk-field' },
+                  h('label', { className: 'dsh-pk-label' }, LANG.publicEntry),
+                  h('select', {
+                    className: 'dsh-pk-select',
+                    value: provider,
+                    disabled: busy !== '',
+                    onChange: (event) => setProvider(event.target.value),
+                  },
+                    h('option', { value: 'cloudflared' }, LANG.cloudflared),
+                    h('option', { value: 'ssh' }, LANG.ownServer),
+                  ),
+                  provider === 'ssh'
+                    ? h('input', {
+                      className: 'dsh-pk-input',
+                      value: sshHost,
+                      placeholder: LANG.serverAddress,
+                      disabled: busy !== '',
+                      onChange: (event) => setSshHost(event.target.value),
+                    })
+                    : null,
+                  h('div', { className: 'dsh-pk-actions' },
+                    h('button', {
+                      className: 'dsh-pk-btn primary',
+                      disabled: busy !== '' || (provider === 'ssh' && sshHost.trim().length === 0),
+                      onClick: switchProvider,
+                    }, busy === 'switch-tunnel' ? LANG.switching : LANG.switchTunnel),
+                  ),
+                  provider === 'ssh' ? h('div', { className: 'dsh-pk-note', style: { marginTop: '8px' } }, LANG.sshHint) : null,
+                ),
                 h('div', { className: 'dsh-pk-actions' },
                   isOnline || isStarting
                     ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-stop') }, LANG.stop)
@@ -393,22 +448,6 @@ if (!alreadyRegistered()) {
               ),
               h(UrlRow, { label: LANG.local, url: urls.local }),
               isOnline ? h(UrlRow, { label: LANG.public, url: urls.publicUrl }) : null,
-              lanOptions.length > 0
-                ? h('div', { className: 'dsh-pk-lanpick' },
-                  h('span', { className: 'dsh-pk-lanpick-label' }, LANG.lanIp),
-                  h('select', {
-                    className: 'dsh-pk-select',
-                    value: lanSelected,
-                    disabled: busy !== '',
-                    onChange: (event) => void action('set-lan', { address: event.target.value }),
-                  },
-                  h('option', { value: '' }, LANG.lanAuto),
-                  ...lanOptions.map((option) => h('option', {
-                    key: option.address,
-                    value: option.address,
-                  }, `${option.name}${option.virtual ? ` · ${LANG.lanVirtual}` : ''} · ${option.address}`))),
-                )
-                : null,
               lan.length === 0
                 ? h('div', { className: 'dsh-pk-empty' }, LANG.noLan)
                 : lan.map((url, index) => h(UrlRow, { key: `${url}-${index}`, label: LANG.lan, url })),
