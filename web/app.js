@@ -165,8 +165,81 @@ const ICONS = {
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="7" cy="17" r="2"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"/></svg>',
+  autoTheme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor" stroke="none"/></svg>',
   dot: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>',
 };
+
+const THEME_KEY = 'dsh_pocket_theme';
+const THEME_MODES = ['system', 'light', 'dark'];
+
+function loadThemeMode() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    return THEME_MODES.includes(stored) ? stored : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+let themeMode = loadThemeMode();
+
+function resolvedTheme() {
+  if (themeMode === 'light' || themeMode === 'dark') return themeMode;
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function themeIcon() {
+  return themeMode === 'light' ? ICONS.sun : themeMode === 'dark' ? ICONS.moon : ICONS.autoTheme;
+}
+
+function themeLabel() {
+  return themeMode === 'light' ? '浅色主题' : themeMode === 'dark' ? '深色主题' : '跟随系统主题';
+}
+
+function applyTheme() {
+  const theme = resolvedTheme();
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta !== null) meta.setAttribute('content', theme === 'light' ? '#f5f7fb' : '#0b0e14');
+  const statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if (statusBar !== null) statusBar.setAttribute('content', theme === 'light' ? 'default' : 'black-translucent');
+  for (const button of document.querySelectorAll('.theme-toggle')) {
+    button.innerHTML = themeIcon();
+    button.title = `主题：${themeLabel()}（点击切换）`;
+    button.setAttribute('aria-label', `主题：${themeLabel()}`);
+  }
+}
+
+function cycleTheme() {
+  const next = THEME_MODES[(THEME_MODES.indexOf(themeMode) + 1) % THEME_MODES.length];
+  themeMode = next;
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    /* private mode */
+  }
+  applyTheme();
+}
+
+function bindThemeButtons() {
+  for (const button of document.querySelectorAll('.theme-toggle')) {
+    button.addEventListener('click', cycleTheme);
+  }
+  applyTheme();
+}
+
+try {
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+    if (themeMode === 'system') applyTheme();
+  });
+} catch {
+  /* old Safari */
+}
+
+applyTheme();
 
 /**
  * 按工具名挑一个更贴题的图标。
@@ -468,6 +541,7 @@ function renderShell() {
           <div class="brand-sub" id="list-sub">正在读取会话…</div>
         </div>
       </div>
+      <button class="iconbtn theme-toggle" title="主题"></button>
       <button class="iconbtn${state.showArchived ? ' active' : ''}" id="archived-toggle" title="${state.showArchived ? '隐藏已归档会话' : '显示已归档会话'}" aria-label="已归档">${ICONS.archive}</button>
       <button class="iconbtn" id="refresh" title="刷新">${ICONS.refresh}</button>
     </header>
@@ -475,6 +549,7 @@ function renderShell() {
       <div class="search">${ICONS.search}<input id="search" placeholder="搜索会话、工作区或目录" autocomplete="off"></div>
       <div id="session-list"></div>
     </div>`;
+  bindThemeButtons();
 }
 
 /**
@@ -815,6 +890,7 @@ function renderChatShell() {
         <b id="chat-title">${escapeHtml(current.meta.title)}</b>
         <span id="chat-cwd">${escapeHtml(current.meta.cwd || '')}</span>
       </div>
+      <button class="iconbtn theme-toggle" title="主题"></button>
       <span class="status-dot busy" id="chat-status" title="连接中"></span>
       <button class="iconbtn" id="chat-refresh" title="重新连接">${ICONS.refresh}</button>
     </header>
@@ -898,6 +974,7 @@ function renderChatShell() {
   });
   autosize(textarea);
   updateSendState();
+  bindThemeButtons();
 }
 
 function autosize(textarea) {

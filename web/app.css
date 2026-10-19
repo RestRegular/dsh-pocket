@@ -487,3 +487,51 @@ a { color: var(--accent); text-decoration: none; }
   .msg.user .bubble { max-width: 74%; }
   .list-scroll { max-width: 860px; width: 100%; margin: 0 auto; }
 }
+
+/* ---------- 浅色主题 ---------- */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --bg-soft: #eef2f8;
+  --card: #ffffff;
+  --card-2: #edf2f9;
+  --line: #d7e0ec;
+  --line-soft: #e5ebf4;
+  --text: #17202e;
+  --dim: #536277;
+  --faint: #7a8799;
+  --accent: #2f6fed;
+  --accent-soft: rgba(47, 111, 237, .1);
+  --accent-line: rgba(47, 111, 237, .35);
+  --green: #1f9d6b;
+  --red: #d94141;
+  --amber: #a86a12;
+}
+:root[data-theme="light"] .topbar { background: rgba(248, 250, 253, .9); }
+:root[data-theme="light"] .composer { background: rgba(248, 250, 253, .94); }
+:root[data-theme="light"] .ws-toggle:hover,
+:root[data-theme="light"] .tool-head:hover { background: rgba(15, 23, 42, .045); }
+:root[data-theme="light"] .thinking { background: rgba(15, 23, 42, .025); }
+:root[data-theme="light"] .md pre,
+:root[data-theme="light"] .tool-body pre {
+  background: #f0f3f8;
+  color: #2f3b4d;
+}
+:root[data-theme="light"] .md a { color: #1f5fd6; }
+:root[data-theme="light"] .tool-name,
+:root[data-theme="light"] .skill-name,
+:root[data-theme="light"] .effort-chip.on { color: #2454b8; }
+:root[data-theme="light"] .pill.pin { color: #2454b8; border-color: rgba(47, 111, 237, .28); }
+:root[data-theme="light"] .pill.sub { color: #6b4fbb; border-color: rgba(107, 79, 187, .25); background: rgba(107, 79, 187, .08); }
+:root[data-theme="light"] .msg.user .bubble { background: #2f6fed; color: #fff; }
+:root[data-theme="light"] .stop { border-color: rgba(217, 65, 65, .28); background: rgba(217, 65, 65, .08); }
+:root[data-theme="light"] .question-banner { color: #8a5a10; }
+:root[data-theme="light"] .toast {
+  background: #fff1f2;
+  border-color: rgba(217, 65, 65, .28);
+  color: #a32424;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .16);
+}
+:root[data-theme="light"] .toast.ok { background: #eefaf4; border-color: rgba(31, 157, 107, .28); color: #126b49; }
+:root[data-theme="light"] .modal-mask { background: rgba(15, 23, 42, .35); }
+:root[data-theme="light"] .modal { box-shadow: 0 24px 60px rgba(15, 23, 42, .18); }
