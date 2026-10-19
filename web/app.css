@@ -102,16 +102,42 @@ a { color: var(--accent); text-decoration: none; }
 
 /* 工作区分组（与桌面侧栏的 workspace 结构对应） */
 .ws-head {
-  display: flex; align-items: center; gap: 7px;
-  padding: 16px 6px 3px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 14px 2px 2px;
   min-width: 0;
 }
+.ws-toggle {
+  display: flex; align-items: center; gap: 7px;
+  flex: 1; min-width: 0;
+  padding: 4px;
+  border: 0; border-radius: 9px;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ws-toggle:hover { background: rgba(255, 255, 255, .035); }
+.ws-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ws-chevron { width: 14px; height: 14px; color: var(--faint); flex: none; display: flex; align-items: center; justify-content: center; }
+.ws-chevron svg { width: 14px; height: 14px; }
 .ws-icon { width: 15px; height: 15px; color: var(--faint); flex: none; display: flex; align-items: center; justify-content: center; }
 .ws-icon svg { width: 15px; height: 15px; }
 .ws-title { font-size: 12px; font-weight: 650; color: var(--dim); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-count { font-size: 10.5px; color: var(--faint); background: var(--card); border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 6px; line-height: 16px; flex: none; }
-.ws-path { padding: 0 6px 6px 28px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ws-empty { padding: 2px 8px 8px 28px; font-size: 12px; color: var(--faint); }
+.ws-count { margin-left: auto; font-size: 10.5px; color: var(--faint); background: var(--card); border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 6px; line-height: 16px; flex: none; }
+.ws-add {
+  flex: none; width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+}
+.ws-add:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.ws-add svg { width: 15px; height: 15px; }
+.ws-path { padding: 0 6px 6px 41px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-empty { padding: 2px 8px 8px 41px; font-size: 12px; color: var(--faint); }
 .ws-archived .ws-title { color: var(--faint); }
 .ws-archived .ws-icon { color: var(--faint); }
 .ws-unassigned .ws-title { color: var(--faint); }
@@ -122,11 +148,11 @@ a { color: var(--accent); text-decoration: none; }
 .pill.pin { color: #9fc0ff; border-color: rgba(79,140,255,.3); background: var(--accent-soft); }
 
 .session {
-  display: flex; align-items: flex-start; gap: 11px;
+  display: flex; align-items: flex-start;
   width: 100%;
-  padding: 12px 12px;
+  padding: 11px 13px;
   margin-bottom: 6px;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid transparent;
   background: var(--card);
   text-align: left;
@@ -134,13 +160,6 @@ a { color: var(--accent); text-decoration: none; }
 }
 .session:active { background: var(--card-2); }
 .session.running { border-color: rgba(245, 184, 75, .25); }
-.session-icon {
-  flex: none; width: 34px; height: 34px; border-radius: 11px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 15px;
-}
-.session.running .session-icon { background: rgba(245, 184, 75, .14); color: var(--amber); }
 .session-main { flex: 1; min-width: 0; }
 .session-title { font-size: 14.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .session-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -162,19 +181,6 @@ a { color: var(--accent); text-decoration: none; }
 .empty { padding: 48px 20px; text-align: center; color: var(--faint); }
 .empty .big { font-size: 34px; margin-bottom: 10px; opacity: .7; }
 .empty p { margin: 0; font-size: 13px; }
-
-.fab {
-  position: fixed; right: 18px; bottom: calc(20px + var(--safe-bottom));
-  width: 52px; height: 52px; border-radius: 18px;
-  border: 0;
-  background: linear-gradient(145deg, #4f8cff, #2b57d8);
-  color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 12px 30px rgba(43, 87, 216, .42);
-  z-index: 20;
-}
-.fab svg { width: 24px; height: 24px; }
-.fab:active { transform: scale(.96); }
 
 /* ---------- 聊天 ---------- */
 .chat-scroll { flex: 1; overflow-y: auto; padding: 14px 13px 10px; -webkit-overflow-scrolling: touch; }

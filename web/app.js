@@ -159,6 +159,8 @@ const ICONS = {
   folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17Z"/></svg>',
   archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="5" rx="1.5"/><path d="M5 9.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V9.5"/><path d="M10 13.5h4"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5h6l-.8 5.2 3.3 3.3H6.5l3.3-3.3L9 4.5Z"/><path d="M12 13v7"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
+  chevronDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 9 7 7 7-7"/></svg>',
   dot: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>',
 };
 
@@ -285,6 +287,14 @@ const state = {
   archived: [],
   counts: { total: 0, workspaces: 0, archived: 0 },
   showArchived: localStorage.getItem('dsh_pocket_show_archived') === '1',
+  collapsed: (() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('dsh_pocket_collapsed_ws') ?? '[]');
+      return new Set(Array.isArray(stored) ? stored : []);
+    } catch {
+      return new Set();
+    }
+  })(),
   filter: '',
   connected: true,
   listTimer: undefined,
@@ -358,8 +368,7 @@ function renderShell() {
     <div class="list-scroll" id="list-scroll">
       <div class="search">${ICONS.search}<input id="search" placeholder="搜索会话、工作区或目录" autocomplete="off"></div>
       <div id="session-list"></div>
-    </div>
-    <button class="fab" id="new-session" title="新建会话">${ICONS.plus}</button>`;
+    </div>`;
 }
 
 /**
@@ -407,7 +416,6 @@ async function loadSessions(options = {}) {
 /** 列表工具栏的事件绑定（renderShell 重建后需要重新绑）。 */
 function bindListEvents() {
   document.querySelector('#refresh')?.addEventListener('click', () => loadSessions({ skeleton: false }));
-  document.querySelector('#new-session')?.addEventListener('click', openNewSession);
   document.querySelector('#archived-toggle')?.addEventListener('click', () => {
     state.showArchived = !state.showArchived;
     localStorage.setItem('dsh_pocket_show_archived', state.showArchived ? '1' : '0');
@@ -450,24 +458,43 @@ function rowMatches(row, filter) {
 }
 
 /**
+ * 工作区分组的折叠 key。
+ * @param {{ kind: string, id?: string }} group
+ * @returns {string}
+ */
+function workspaceGroupKey(group) {
+  return group.kind === 'workspace' ? `ws:${group.id}` : group.kind;
+}
+
+/**
  * 渲染一个工作区分组。
- * @param {{ kind: string, title: string, path?: string, sessions: any[] }} group
+ * @param {{ kind: string, id?: string, title: string, path?: string, sessions: any[] }} group
  * @param {boolean} showPathInRows
  * @returns {string}
  */
 function renderWorkspaceGroup(group, showPathInRows) {
+  const key = workspaceGroupKey(group);
+  const collapsed = state.collapsed.has(key);
   const icon = group.kind === 'archived' ? ICONS.archive : ICONS.folder;
   const sessions = [...group.sessions].sort((left, right) => {
     const pin = (right.pinned === true ? 1 : 0) - (left.pinned === true ? 1 : 0);
     if (pin !== 0) return pin;
     return (right.updatedAt ?? 0) - (left.updatedAt ?? 0);
   });
+  const addButton = group.kind === 'workspace' && typeof group.path === 'string' && group.path.length > 0
+    ? `<button class="ws-add" data-ws-path="${escapeHtml(group.path)}" title="在此工作区新建会话" aria-label="在此工作区新建会话">${ICONS.plus}</button>`
+    : '';
   let html = `
     <div class="ws-head ws-${escapeHtml(group.kind)}">
-      <span class="ws-icon">${icon}</span>
-      <span class="ws-title">${escapeHtml(group.title)}</span>
-      <span class="ws-count">${sessions.length}</span>
+      <button class="ws-toggle" data-ws-key="${escapeHtml(key)}" aria-expanded="${String(!collapsed)}">
+        <span class="ws-chevron">${collapsed ? ICONS.chevron : ICONS.chevronDown}</span>
+        <span class="ws-icon">${icon}</span>
+        <span class="ws-title">${escapeHtml(group.title)}</span>
+        <span class="ws-count">${sessions.length}</span>
+      </button>
+      ${addButton}
     </div>`;
+  if (collapsed) return html;
   if (typeof group.path === 'string' && group.path.length > 0) {
     html += `<div class="ws-path" title="${escapeHtml(group.path)}">${escapeHtml(group.path)}</div>`;
   }
@@ -486,7 +513,6 @@ function renderWorkspaceGroup(group, showPathInRows) {
       : '';
     html += `
       <button class="session${item.running === true ? ' running' : ''}${item.archived === true ? ' archived' : ''}" data-id="${escapeHtml(item.id)}">
-        <span class="session-icon">${ICONS.chat}</span>
         <span class="session-main">
           <span class="session-title"><span>${escapeHtml(item.title ?? '会话')}</span>${pills}</span>
           ${meta}
@@ -501,45 +527,50 @@ function renderSessionList() {
   const container = document.querySelector('#session-list');
   if (container === null) return;
   const sub = document.querySelector('#list-sub');
-  const visible = state.counts.visible ?? state.sessions.length;
-  const hiddenBlank = state.counts.hiddenBlank ?? 0;
-  if (sub !== null) {
-    sub.textContent = `${visible} 个会话 · ${state.workspaces.length} 个工作区`
-      + `${state.archived.length > 0 ? ` · ${state.archived.length} 个已归档` : ''}`
-      + `${hiddenBlank > 0 ? ` · 已隐藏 ${hiddenBlank} 个空会话` : ''}`;
-  }
-
   const filter = state.filter.toLowerCase();
   const groups = [];
   for (const workspace of state.workspaces) {
     const workspaceText = `${workspace.title ?? ''} ${workspace.path ?? ''}`.toLowerCase();
     const workspaceMatches = filter.length === 0 || workspaceText.includes(filter);
-    const sessions = (workspace.sessions ?? []).filter((row) => workspaceMatches || rowMatches(row, filter));
+    const sessions = (workspace.sessions ?? [])
+      .filter((row) => row.blank !== true)
+      .filter((row) => workspaceMatches || rowMatches(row, filter));
     if (filter.length > 0 && sessions.length === 0) continue;
     groups.push({
       kind: 'workspace',
+      id: workspace.id,
       title: workspace.title ?? (workspace.path ?? '工作区'),
       path: workspace.path,
       sessions,
     });
   }
 
-  const unassigned = state.unassigned.filter((row) => rowMatches(row, filter));
+  const unassigned = state.unassigned.filter((row) => row.blank !== true && rowMatches(row, filter));
   if (unassigned.length > 0) {
     groups.push({ kind: 'unassigned', title: '未分组', path: '', sessions: unassigned });
   }
 
   if (state.showArchived) {
-    const archived = state.archived.filter((row) => rowMatches(row, filter));
+    const archived = state.archived.filter((row) => row.blank !== true && rowMatches(row, filter));
     if (archived.length > 0) {
       groups.push({ kind: 'archived', title: '已归档', path: '', sessions: archived });
     }
   }
 
+  // 旧 Host 版本的 counts.visible 仍包含空会话；用实际分组重算，保证显示与列表一致。
+  const visibleCount = state.workspaces.reduce(
+    (sum, workspace) => sum + (workspace.sessions ?? []).filter((row) => row.blank !== true).length,
+    0,
+  ) + state.unassigned.filter((row) => row.blank !== true).length;
+  if (sub !== null) {
+    sub.textContent = `${visibleCount} 个会话 · ${state.workspaces.length} 个工作区`
+      + `${state.archived.length > 0 ? ` · ${state.archived.filter((row) => row.blank !== true).length} 个已归档` : ''}`;
+  }
+
   const totalSessions = groups.reduce((sum, group) => sum + group.sessions.length, 0);
-  if (groups.length === 0 || totalSessions === 0) {
+  if (groups.length === 0 || (filter.length > 0 && totalSessions === 0)) {
     const empty = state.sessions.length === 0 && state.archived.length === 0;
-    container.innerHTML = `<div class="empty"><div class="big">${empty ? '🫧' : '🔍'}</div><p>${empty ? '还没有会话，点右下角新建一个。' : '没有匹配的会话。'}</p></div>`;
+    container.innerHTML = `<div class="empty"><div class="big">${empty ? '🫧' : '🔍'}</div><p>${empty ? '还没有会话。' : '没有匹配的会话。'}</p></div>`;
     return;
   }
 
@@ -548,57 +579,51 @@ function renderSessionList() {
     html += renderWorkspaceGroup(group, group.kind !== 'workspace');
   }
   container.innerHTML = html;
+  for (const button of container.querySelectorAll('.ws-toggle')) {
+    button.addEventListener('click', () => {
+      const key = button.dataset.wsKey;
+      if (state.collapsed.has(key)) state.collapsed.delete(key);
+      else state.collapsed.add(key);
+      localStorage.setItem('dsh_pocket_collapsed_ws', JSON.stringify([...state.collapsed]));
+      renderSessionList();
+    });
+  }
+  for (const button of container.querySelectorAll('.ws-add')) {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void createSessionInWorkspace(button.dataset.wsPath);
+    });
+  }
   for (const button of container.querySelectorAll('.session')) {
     button.addEventListener('click', () => openSession(button.dataset.id));
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/* 新建会话                                                                    */
+/* 新建会话（工作区标题右侧的 +）                                                */
 /* -------------------------------------------------------------------------- */
 
-function openNewSession() {
-  const lastCwd = state.sessions.find((item) => typeof item.cwd === 'string' && item.cwd.length > 0)?.cwd ?? '';
-  const mask = el('div', 'modal-mask');
-  const modal = el('div', 'modal');
-  modal.innerHTML = `
-    <h3>新建会话</h3>
-    <p>留空则使用 DSH 默认工作目录；也可以填一个绝对路径。</p>
-    <input id="new-cwd" placeholder="例如 D:\\projects\\demo" value="${escapeHtml(lastCwd)}">
-    <div class="modal-actions">
-      <button class="btn" id="new-cancel">取消</button>
-      <button class="btn primary" id="new-create">创建</button>
-    </div>`;
-  mask.appendChild(modal);
-  document.body.appendChild(mask);
-  const input = modal.querySelector('#new-cwd');
-  const close = () => mask.remove();
-  mask.addEventListener('click', (event) => {
-    if (event.target === mask) close();
-  });
-  modal.querySelector('#new-cancel').addEventListener('click', close);
-  const create = async () => {
-    const button = modal.querySelector('#new-create');
-    button.disabled = true;
-    button.textContent = '创建中…';
-    try {
-      const payload = await api('/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify({ cwd: input.value.trim() }),
-      });
-      close();
-      openSession(payload.sessionId);
-    } catch (error) {
-      button.disabled = false;
-      button.textContent = '创建';
-      toast(error.message ?? String(error));
-    }
-  };
-  modal.querySelector('#new-create').addEventListener('click', create);
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') create();
-  });
-  requestAnimationFrame(() => input.focus());
+let creatingSession = false;
+
+/**
+ * 在指定工作区新建会话并直接打开。
+ * @param {string | undefined} path
+ * @returns {Promise<void>}
+ */
+async function createSessionInWorkspace(path) {
+  if (typeof path !== 'string' || path.length === 0 || creatingSession) return;
+  creatingSession = true;
+  try {
+    const payload = await api('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ cwd: path }),
+    });
+    openSession(payload.sessionId);
+  } catch (error) {
+    toast(error.message ?? String(error));
+  } finally {
+    creatingSession = false;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
