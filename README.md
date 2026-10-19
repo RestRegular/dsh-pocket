@@ -4,6 +4,7 @@
 
 - **独立移动页面**：不是把桌面 GUI 硬塞进手机，而是为窄屏重写的会话列表 + 聊天流。
 - **与桌面一致的工作区视图**：按 `workspaceController` 的工作区顺序和会话归属分组；默认隐藏已归档会话，顶部一键切换显示。
+- **会话操作菜单**：会话行右侧的「更多」可以置顶（只在所属工作区内排到最前）、重命名、归档/取消归档、复制 Session ID；归档运行中的会话会先征询并停止其工作。
 - **流式输出**：WebSocket 跟进 `sessionController.follow`，助手文本、思考过程、工具调用与结果实时出现。历史快照分批推送，手机边收边渲染。
 - **反向控制**：发送提示词、停止当前回合、新建会话（自动挂到对应工作区）。
 - **繁忙发送**：手机发送时读取桌面 `ui-conversation.busyEnter` 设置；空闲时正常发送，运行中按设置选择「排队发送」或「插话发送」。
@@ -18,9 +19,9 @@
 - **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
 - **轻量依赖**：一个 `ws`（WebSocket 服务端），二维码编码器随包内嵌；宿主和移动页面其余部分都是原生 ESM。
 
-| 会话列表 | 聊天与工具卡片 | 桌面面板 |
-| --- | --- | --- |
-| ![手机会话列表](preview/mobile-list-phone.png) | ![手机聊天](preview/mobile-chat-tools.png) | ![桌面面板](preview/desktop-pocket-qr.png) |
+| 会话列表 | 会话操作菜单 | 聊天与工具卡片 | 桌面面板 |
+| --- | --- | --- | --- |
+| ![手机会话列表](preview/mobile-list-phone.png) | ![会话操作菜单](preview/mobile-session-menu.png) | ![手机聊天](preview/mobile-chat-tools.png) | ![桌面面板](preview/desktop-pocket-qr.png) |
 
 > 截图里的访问令牌已经轮换失效；实际令牌以你本机面板显示的二维码为准。
 
@@ -119,6 +120,7 @@ sshExposePort: 80
 ## 移动端能力
 
 - 会话列表：按工作区分组（顺序与桌面侧栏一致）、标题、运行状态、最新活动时间；工作区可折叠/展开并记住状态；每个工作区标题右侧的 `+` 直接在对应目录新建会话；空会话（点过新建但没发消息）不显示；顶部按钮切换是否显示已归档会话；搜索会话/工作区/目录。
+- 会话操作：会话行右侧「更多」→ 置顶/取消置顶（只在所属工作区内排到最前）、重命名、归档/取消归档、复制 Session ID。归档运行中的会话会先确认，Host 拒绝时再提供「停止并归档」。
 - 聊天流：用户/助手消息、Markdown（标题、列表、代码块、表格、图片）、思考过程折叠、工具调用参数与结果、token 用量。Markdown 里的相对图片路径按当前会话工作区解析。
 - 工具卡片：默认折叠，标题里显示自动截断的命令/路径/查询摘要；点开看完整参数与结果，展开状态在流式重绘时保持。
 - 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。
@@ -135,6 +137,10 @@ sshExposePort: 80
 | GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组。 |
 | POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
 | GET | `/api/sessions/:id` | 标题、目录、运行状态。 |
+| POST | `/api/sessions/:id/pin` | `{ "pinned": true \| false }`，置顶/取消置顶（置顶集合由桌面共用，手机只在所属工作区内排序）。 |
+| POST | `/api/sessions/:id/archive` | `{ "stopActivity": true }` 可先停止仍在跑的工作；被拒绝时返回 409 与 `code: "workspace/session-active"`。 |
+| POST | `/api/sessions/:id/unarchive` | 取消归档。 |
+| POST | `/api/sessions/:id/rename` | `{ "title": "..." }`，钉住会话标题。 |
 | WS | `/ws/session/:id?token=...` | 手机端使用的会话流：`hello`、`snapshot-meta` / `snapshot-batch` / `snapshot-end`、`frame`；以及 `question-request` / `approval-request` / `interaction-closed` 前台交互。 |
 | GET | `/api/sessions/:id/follow` | SSE 版本，保留给 curl/调试；注意部分隧道会缓冲 SSE 响应。 |
 | GET | `/api/sessions/:id/page?throughSeq=&beforeSeq=` | 历史翻页。 |
@@ -158,7 +164,8 @@ sshExposePort: 80
 - **多端同时在线**：手机与桌面都能回答同一个提问/审批，先提交的一方生效；手机没有该会话的 WebSocket 时自动回落到桌面 answerer。
 - **图片输入**：需要当前模型声明支持图片输入；手机端最多 4 张、单张 18 MB。
 - **子代理会话**：移动列表只列普通会话，子代理（`origin: subagent`）不单独展示。
-- **置顶**：置顶会话会在工作区内排到最前并显示标记，但没有单独的「置顶」分组。
+- **置顶**：置顶会话会在所属工作区内排到最前并显示标记，但没有单独的「置顶」分组；置顶集合与桌面共用。
+- **删除会话**：DSH 本身不提供删除会话的能力（桌面端也只有归档，会话日志只累积不删除），所以手机端同样只做归档；归档后可在顶部「已归档」里恢复。
 - **PWA 离线**：有 manifest，但没有 Service Worker 离线缓存。
 
 ## 开发

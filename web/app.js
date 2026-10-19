@@ -46,7 +46,11 @@ async function api(path, options = {}) {
   }
   const payload = await response.json().catch(() => ({ ok: false, error: `HTTP ${response.status}` }));
   if (!response.ok || payload.ok === false) {
-    throw new Error(payload.error ?? `HTTP ${response.status}`);
+    const error = new Error(payload.error ?? `HTTP ${response.status}`);
+    // Host 会在会话动作失败时带上稳定 code（例如 workspace/session-active）。
+    if (typeof payload.code === 'string') error.code = payload.code;
+    if (Array.isArray(payload.activity)) error.activity = payload.activity;
+    throw error;
   }
   return payload;
 }
@@ -165,6 +169,9 @@ const ICONS = {
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="7" cy="17" r="2"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 5.5A1.5 1.5 0 0 0 13.5 4H6a2 2 0 0 0-2 2v7.5A1.5 1.5 0 0 0 5.5 15"/></svg>',
   sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>',
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"/></svg>',
   autoTheme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor" stroke="none"/></svg>',
@@ -465,6 +472,8 @@ const state = {
   unassigned: [],
   archived: [],
   counts: { total: 0, workspaces: 0, archived: 0 },
+  features: undefined,
+  pinnedIds: [],
   showArchived: localStorage.getItem('dsh_pocket_show_archived') === '1',
   collapsed: (() => {
     try {
@@ -562,6 +571,11 @@ function applySessionPayload(payload) {
   state.unassigned = Array.isArray(payload.unassigned) ? payload.unassigned : [];
   state.archived = Array.isArray(payload.archived) ? payload.archived : [];
   state.counts = payload.counts ?? { total: state.sessions.length, workspaces: state.workspaces.length, archived: state.archived.length };
+  // 旧 Host 不返回 features；保持 undefined，行内“更多”入口就不渲染。
+  if (payload.features !== undefined) state.features = payload.features;
+  // 置顶集合按“最近置顶在前”返回，组内置顶行按这个顺序排。
+  const pinnedRows = Array.isArray(payload.pinned) ? payload.pinned : [];
+  state.pinnedIds = pinnedRows.map((row) => row.id);
 }
 
 async function loadSessions(options = {}) {
@@ -657,9 +671,12 @@ function renderWorkspaceGroup(group, showPathInRows) {
   const key = workspaceGroupKey(group);
   const collapsed = state.collapsed.has(key);
   const icon = group.kind === 'archived' ? ICONS.archive : ICONS.folder;
+  const pinRank = new Map(state.pinnedIds.map((id, index) => [id, index]));
   const sessions = [...group.sessions].sort((left, right) => {
-    const pin = (right.pinned === true ? 1 : 0) - (left.pinned === true ? 1 : 0);
-    if (pin !== 0) return pin;
+    const leftPinned = pinRank.has(left.id);
+    const rightPinned = pinRank.has(right.id);
+    if (leftPinned !== rightPinned) return leftPinned ? -1 : 1;
+    if (leftPinned && rightPinned) return pinRank.get(left.id) - pinRank.get(right.id);
     return (right.updatedAt ?? 0) - (left.updatedAt ?? 0);
   });
   const addButton = group.kind === 'workspace' && typeof group.path === 'string' && group.path.length > 0
@@ -684,6 +701,7 @@ function renderWorkspaceGroup(group, showPathInRows) {
     return html;
   }
   let rows = '';
+  const actions = state.features?.sessionActions === true;
   for (const item of sessions) {
     const pills = [
       item.running === true ? '<span class="pill run">运行中</span>' : '',
@@ -693,14 +711,20 @@ function renderWorkspaceGroup(group, showPathInRows) {
     const meta = showPathInRows
       ? `<span class="session-meta"><span class="cwd">${escapeHtml(item.cwd || '未绑定目录')}</span></span>`
       : '';
+    const more = actions
+      ? `<button class="session-more" data-more-id="${escapeHtml(item.id)}" title="更多操作" aria-label="更多操作" aria-haspopup="menu">${ICONS.more}</button>`
+      : '';
     rows += `
-      <button class="session${item.running === true ? ' running' : ''}${item.archived === true ? ' archived' : ''}" data-id="${escapeHtml(item.id)}">
-        <span class="session-main">
-          <span class="session-title"><span>${escapeHtml(item.title ?? '会话')}</span>${pills}</span>
-          ${meta}
-        </span>
-        <span class="session-time">${escapeHtml(relativeTime(item.updatedAt))}</span>
-      </button>`;
+      <div class="session-row">
+        <button class="session${item.running === true ? ' running' : ''}${item.archived === true ? ' archived' : ''}" data-id="${escapeHtml(item.id)}">
+          <span class="session-main">
+            <span class="session-title"><span>${escapeHtml(item.title ?? '会话')}</span>${pills}</span>
+            ${meta}
+          </span>
+          <span class="session-time">${escapeHtml(relativeTime(item.updatedAt))}</span>
+        </button>
+        ${more}
+      </div>`;
   }
   html += `<div class="ws-sessions">${rows}</div>`;
   return html;
@@ -780,6 +804,29 @@ function renderSessionList() {
   for (const button of container.querySelectorAll('.session')) {
     button.addEventListener('click', () => openSession(button.dataset.id));
   }
+  for (const button of container.querySelectorAll('.session-more')) {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const row = findSessionRow(button.dataset.moreId);
+      if (row !== undefined) openSessionMenu(row);
+    });
+  }
+}
+
+/**
+ * 在已加载的列表数据里按 id 找会话行。
+ * @param {string | undefined} id
+ * @returns {any | undefined}
+ */
+function findSessionRow(id) {
+  if (typeof id !== 'string' || id.length === 0) return undefined;
+  const pools = [state.sessions, state.unassigned, state.archived];
+  for (const workspace of state.workspaces) pools.push(workspace.sessions ?? []);
+  for (const pool of pools) {
+    const row = pool.find((item) => item.id === id);
+    if (row !== undefined) return row;
+  }
+  return undefined;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -807,6 +854,272 @@ async function createSessionInWorkspace(path) {
   } finally {
     creatingSession = false;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 会话操作（会话行右侧的“更多”）                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 打开某个会话的操作菜单。
+ * @param {any} row
+ */
+function openSessionMenu(row) {
+  const archived = row.archived === true;
+  const pinned = row.pinned === true;
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal sheet menu-sheet');
+  const pinItem = archived
+    ? ''
+    : `<button class="menu-item" data-menu-action="pin" role="menuitem">
+        ${ICONS.pin}
+        <span class="menu-label">${pinned ? '取消置顶' : '置顶会话'}</span>
+        ${pinned ? '' : '<span class="menu-hint">工作区内置顶</span>'}
+      </button>`;
+  modal.innerHTML = `
+    <div class="sheet-head">
+      <h3 class="menu-title">${escapeHtml(row.title ?? '会话')}</h3>
+      <button class="iconbtn" data-menu-close title="关闭" aria-label="关闭">${ICONS.close}</button>
+    </div>
+    <div class="menu-list" role="menu">
+      ${pinItem}
+      <button class="menu-item" data-menu-action="rename" role="menuitem">${ICONS.edit}<span class="menu-label">重命名</span></button>
+      <button class="menu-item" data-menu-action="archive" role="menuitem">${ICONS.archive}<span class="menu-label">${archived ? '取消归档' : '归档会话'}</span></button>
+      <button class="menu-item" data-menu-action="copy" role="menuitem">${ICONS.copy}<span class="menu-label">复制 Session ID</span></button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  modal.querySelector('[data-menu-close]').addEventListener('click', close);
+  for (const button of modal.querySelectorAll('[data-menu-action]')) {
+    button.addEventListener('click', () => {
+      close();
+      const action = button.dataset.menuAction;
+      if (action === 'pin') void togglePinned(row);
+      else if (action === 'rename') openRenameDialog(row);
+      else if (action === 'archive') void archiveSession(row);
+      else if (action === 'copy') void copySessionId(row);
+    });
+  }
+}
+
+/**
+ * 把 Host 的失败翻译成手机上看得懂的提示。
+ * @param {any} error
+ * @returns {string}
+ */
+function actionErrorText(error) {
+  if (error?.code === 'workspace/session-active') return '会话还有工作在跑，归档前需要先停止它们';
+  if (error?.code === 'session/not-found') return '会话不存在或已被移除';
+  if (error?.code === 'workspace/not-found') return '工作区不存在';
+  if (error?.code === 'session/title-invalid') return '这个标题不可用';
+  return error?.message ?? String(error);
+}
+
+/**
+ * 置顶 / 取消置顶。置顶只在会话所属工作区内生效，不会跨工作区排序。
+ * @param {any} row
+ * @returns {Promise<void>}
+ */
+async function togglePinned(row) {
+  const pinned = row.pinned !== true;
+  try {
+    await api(`/api/sessions/${encodeURIComponent(row.id)}/pin`, {
+      method: 'POST',
+      body: JSON.stringify({ pinned }),
+    });
+    toast(pinned ? '已置顶（仅在此工作区内）' : '已取消置顶', 'ok');
+    await refreshSessionsQuietly();
+  } catch (error) {
+    toast(actionErrorText(error));
+  }
+}
+
+/**
+ * 归档 / 取消归档。运行中的会话先问一句，Host 仍拒绝时再给出“停止并归档”。
+ * @param {any} row
+ * @returns {Promise<void>}
+ */
+async function archiveSession(row) {
+  const request = (stopActivity) => api(`/api/sessions/${encodeURIComponent(row.id)}/archive`, {
+    method: 'POST',
+    body: JSON.stringify(stopActivity ? { stopActivity: true } : {}),
+  });
+  if (row.archived === true) {
+    try {
+      await api(`/api/sessions/${encodeURIComponent(row.id)}/unarchive`, { method: 'POST' });
+      toast('已取消归档', 'ok');
+      await refreshSessionsQuietly();
+    } catch (error) {
+      toast(actionErrorText(error));
+    }
+    return;
+  }
+  if (row.running === true) {
+    const confirmed = await confirmDialog({
+      title: '归档会话',
+      message: '这个会话正在运行，归档会先停止当前工作。继续吗？',
+      confirmText: '停止并归档',
+    });
+    if (!confirmed) return;
+  }
+  try {
+    await request(row.running === true);
+    toast('已归档', 'ok');
+    await refreshSessionsQuietly();
+  } catch (error) {
+    if (error.code !== 'workspace/session-active') {
+      toast(actionErrorText(error));
+      return;
+    }
+    const confirmed = await confirmDialog({
+      title: '会话还有工作在跑',
+      message: '归档前需要先停止这些工作（回合、子代理、后台任务或定时提醒）。停止并归档？',
+      confirmText: '停止并归档',
+    });
+    if (!confirmed) return;
+    try {
+      await request(true);
+      toast('已归档', 'ok');
+      await refreshSessionsQuietly();
+    } catch (retryError) {
+      toast(actionErrorText(retryError));
+    }
+  }
+}
+
+/**
+ * 重命名对话框；确认未修改的标题会把当前标题固定下来。
+ * @param {any} row
+ */
+function openRenameDialog(row) {
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal');
+  modal.innerHTML = `
+    <h3>重命名会话</h3>
+    <p>确认未改动的标题会把当前标题固定下来，不再被自动标题覆盖。</p>
+    <input id="rename-input" maxlength="200" autocomplete="off" value="${escapeHtml(row.title ?? '')}">
+    <div class="modal-actions">
+      <button class="btn" id="rename-cancel">取消</button>
+      <button class="btn primary" id="rename-save">保存</button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const input = modal.querySelector('#rename-input');
+  const save = modal.querySelector('#rename-save');
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  modal.querySelector('#rename-cancel').addEventListener('click', close);
+  const submit = async () => {
+    const value = input.value.trim();
+    if (value.length === 0) {
+      toast('标题不能为空');
+      input.focus();
+      return;
+    }
+    save.disabled = true;
+    save.textContent = '保存中…';
+    try {
+      await api(`/api/sessions/${encodeURIComponent(row.id)}/rename`, {
+        method: 'POST',
+        body: JSON.stringify({ title: value }),
+      });
+      close();
+      toast('已重命名', 'ok');
+      await refreshSessionsQuietly();
+    } catch (error) {
+      save.disabled = false;
+      save.textContent = '保存';
+      toast(actionErrorText(error));
+    }
+  };
+  save.addEventListener('click', () => void submit());
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void submit();
+    }
+  });
+  requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+}
+
+/**
+ * 复制会话 id（桌面端菜单里的同一项）。
+ * @param {any} row
+ * @returns {Promise<void>}
+ */
+async function copySessionId(row) {
+  const copied = await writeClipboard(row.id);
+  toast(copied ? '已复制 Session ID' : '复制失败，请长按标题手动复制', copied ? 'ok' : 'error');
+}
+
+/**
+ * 写剪贴板：优先 Clipboard API，非安全上下文回退到 execCommand。
+ * @param {string} text
+ * @returns {Promise<boolean>}
+ */
+async function writeClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText !== undefined) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* 继续走回退 */
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '-1000px';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand('copy');
+    area.remove();
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 简单确认框。
+ * @param {{ title: string, message: string, confirmText?: string }} options
+ * @returns {Promise<boolean>}
+ */
+function confirmDialog({ title, message, confirmText = '确定' }) {
+  return new Promise((resolve) => {
+    const mask = el('div', 'modal-mask');
+    const modal = el('div', 'modal');
+    modal.innerHTML = `
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(message)}</p>
+      <div class="modal-actions">
+        <button class="btn" data-confirm="no">取消</button>
+        <button class="btn primary" data-confirm="yes">${escapeHtml(confirmText)}</button>
+      </div>`;
+    mask.appendChild(modal);
+    document.body.appendChild(mask);
+    const finish = (value) => {
+      mask.remove();
+      resolve(value);
+    };
+    mask.addEventListener('click', (event) => {
+      if (event.target === mask) finish(false);
+    });
+    modal.querySelector('[data-confirm="no"]').addEventListener('click', () => finish(false));
+    modal.querySelector('[data-confirm="yes"]').addEventListener('click', () => finish(true));
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1404,8 +1717,10 @@ function openQuestionModal() {
         ${options.map((option, optionIndex) => `
           <label class="question-option">
             <input type="${type}" name="q-${index}" value="${escapeHtml(option.label)}" id="q-${index}-${optionIndex}">
-            <span class="question-option-main">${escapeHtml(option.label)}</span>
-            ${option.description ? `<span class="question-option-desc">${escapeHtml(option.description)}</span>` : ''}
+            <span class="question-option-body">
+              <span class="question-option-main">${escapeHtml(option.label)}</span>
+              ${option.description ? `<span class="question-option-desc">${escapeHtml(option.description)}</span>` : ''}
+            </span>
           </label>`).join('')}
       </div>
       <input class="sheet-input" data-custom-index="${index}" placeholder="${options.length > 0 ? '自定义回答（可选）' : '输入回答'}">
