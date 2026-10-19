@@ -14,6 +14,8 @@
 | --- | --- | --- |
 | ![手机会话列表](preview/mobile-list-phone.png) | ![手机聊天](preview/mobile-chat-tools.png) | ![桌面面板](preview/desktop-pocket-qr.png) |
 
+> 截图里的访问令牌已经轮换失效；实际令牌以你本机面板显示的二维码为准。
+
 ## 安装
 
 在当前 DSH profile 里安装本目录（Plugin Manager → 本地目录安装，或调用 `plugin_manager` 的 `install_bundle`）：
