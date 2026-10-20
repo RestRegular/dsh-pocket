@@ -2159,7 +2159,7 @@ function openApprovalModal(interaction) {
 
 /**
  * 读取文件为 data URL。
- * @param {File} file
+ * @param {Blob} file
  * @returns {Promise<string>}
  */
 function readFileAsDataUrl(file) {
@@ -2169,6 +2169,131 @@ function readFileAsDataUrl(file) {
     reader.onerror = () => rejectPromise(reader.error ?? new Error('读取图片失败'));
     reader.readAsDataURL(file);
   });
+}
+
+/** 手机相册可能给出 HEIC/HEIF，统一按 MIME 或扩展名识别。 */
+const IMAGE_TYPE_PATTERN = /^image\/(?:png|jpe?g|webp|gif|heic|heif|avif)$/u;
+
+/**
+ * 从文件名/MIME 推断图片类型；部分 Android 文件选择器不给 `file.type`。
+ * @param {File} file
+ * @returns {string}
+ */
+function detectImageType(file) {
+  if (typeof file.type === 'string' && file.type.startsWith('image/')) return file.type.toLowerCase();
+  const ext = String(file.name ?? '').split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'heic') return 'image/heic';
+  if (ext === 'heif') return 'image/heif';
+  if (ext === 'avif') return 'image/avif';
+  return '';
+}
+
+/**
+ * 得到可绘制到 canvas 的图片源。
+ * @param {Blob} file
+ * @returns {Promise<{ source: CanvasImageSource, width: number, height: number, close: () => void }>}
+ */
+async function loadImageSource(file) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file);
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close?.() };
+    } catch {
+      /* Safari 对 HEIC/AVIF 可能不支持 createImageBitmap，回退到 <img> */
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolvePromise, rejectPromise) => {
+      const node = new Image();
+      node.onload = () => resolvePromise(node);
+      node.onerror = () => rejectPromise(new Error('读取图片失败'));
+      node.src = url;
+    });
+    return {
+      source: image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      close: () => URL.revokeObjectURL(url),
+    };
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
+}
+
+/**
+ * 把 canvas 导出成 JPEG Blob（旧 Safari 没有 toBlob 时走 toDataURL）。
+ * @param {HTMLCanvasElement} canvas
+ * @param {number} quality
+ * @returns {Promise<Blob | null>}
+ */
+function canvasToBlob(canvas, quality) {
+  return new Promise((resolvePromise) => {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob((blob) => resolvePromise(blob), 'image/jpeg', quality);
+      return;
+    }
+    try {
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      const binary = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+      resolvePromise(new Blob([bytes], { type: 'image/jpeg' }));
+    } catch {
+      resolvePromise(null);
+    }
+  });
+}
+
+/**
+ * 压缩手机照片：长边最多 2048px，目标 ≤ 1.5 MB。
+ * 主要是为了穿过 Pocket 的 JSON 请求体和移动网络，而不是追求画质。
+ * @param {File} file
+ * @param {string} mediaType
+ * @returns {Promise<Blob>}
+ */
+async function compressImage(file, mediaType) {
+  const passthrough = (mediaType === 'image/jpeg' || mediaType === 'image/png' || mediaType === 'image/webp')
+    && file.size <= 700_000;
+  if (passthrough || mediaType === 'image/gif') return file;
+
+  const loaded = await loadImageSource(file);
+  try {
+    if (loaded.width === 0 || loaded.height === 0) return file;
+    const scale = Math.min(1, 2048 / Math.max(loaded.width, loaded.height));
+    let width = Math.max(1, Math.round(loaded.width * scale));
+    let height = Math.max(1, Math.round(loaded.height * scale));
+    let quality = 0.9;
+    let blob = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (context === null) break;
+      // JPEG 没有 alpha；先铺白色，避免透明截图变成黑底。
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+      context.drawImage(loaded.source, 0, 0, width, height);
+      blob = await canvasToBlob(canvas, quality);
+      if (blob === null) break;
+      if (blob.size <= 1_500_000) break;
+      if (width <= 900) {
+        quality = Math.max(0.55, quality - 0.12);
+      } else {
+        width = Math.max(1, Math.round(width * 0.78));
+        height = Math.max(1, Math.round(height * 0.78));
+      }
+    }
+    return blob ?? file;
+  } finally {
+    loaded.close();
+  }
 }
 
 async function addImages(files) {
@@ -2183,9 +2308,10 @@ async function addImages(files) {
       toast('最多添加 4 张图片');
       break;
     }
-    if (!file.type.startsWith('image/')) continue;
-    if (!/^image\/(?:png|jpe?g|webp|gif)$/u.test(file.type)) {
-      toast('只支持 png/jpeg/webp/gif 图片');
+    const mediaType = detectImageType(file);
+    if (mediaType.length === 0) continue;
+    if (!IMAGE_TYPE_PATTERN.test(mediaType)) {
+      toast('只支持 png/jpeg/webp/gif/heic 图片');
       continue;
     }
     if (file.size > 18 * 1024 * 1024) {
@@ -2193,9 +2319,19 @@ async function addImages(files) {
       continue;
     }
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const compressed = await compressImage(file, mediaType);
+      if (compressed.size > 6 * 1024 * 1024) {
+        toast(`${file.name} 压缩后仍超过 6 MB`);
+        continue;
+      }
+      const outgoingType = compressed.type || mediaType;
+      if (!/^image\/(?:png|jpe?g|webp|gif)$/u.test(outgoingType)) {
+        toast('这个图片格式无法转换，请换一张');
+        continue;
+      }
+      const dataUrl = await readFileAsDataUrl(compressed);
       current.images.push({
-        mediaType: file.type,
+        mediaType: outgoingType,
         data: dataUrl.replace(/^data:[^;]+;base64,/u, ''),
         name: file.name,
         preview: dataUrl,
