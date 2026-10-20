@@ -22,11 +22,11 @@
 - **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
 - **轻量依赖**：一个 `ws`（WebSocket 服务端），二维码编码器随包内嵌；宿主和移动页面其余部分都是原生 ESM。
 
-| 会话列表 | 会话操作菜单 | 聊天与工具卡片 | 桌面面板 |
+| 首页与余额 | 会话操作菜单 | 聊天与工具卡片 | 桌面面板 |
 | --- | --- | --- | --- |
-| ![手机会话列表](preview/mobile-list-phone.png) | ![会话操作菜单](preview/mobile-session-menu.png) | ![手机聊天](preview/mobile-chat-tools.png) | ![桌面面板](preview/desktop-pocket-qr.png) |
+| ![手机首页与余额](preview/mobile-list-phone.png) | ![会话操作菜单](preview/mobile-session-menu.png) | ![手机聊天](preview/mobile-chat-tools.png) | ![桌面面板](preview/desktop-pocket-qr.png) |
 
-> 截图里的访问令牌已经轮换失效；实际令牌以你本机面板显示的二维码为准。
+> 截图里的访问令牌已经轮换失效，余额为演示数据；实际令牌以你本机面板显示的二维码为准。
 
 ## 安装
 

@@ -147,6 +147,7 @@ function toast(message, kind = 'error') {
 /* -------------------------------------------------------------------------- */
 
 const ICONS = {
+  logo: '<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="pocket-logo-bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4f8cff"/><stop offset="1" stop-color="#2b57d8"/></linearGradient></defs><rect x="3" y="3" width="58" height="58" rx="15" fill="url(#pocket-logo-bg)"/><rect x="19" y="12" width="26" height="40" rx="7" fill="none" stroke="#ffffff" stroke-width="3.2"/><path d="M26 17.5h12" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" opacity=".85"/><circle cx="32" cy="45.5" r="2.1" fill="#ffffff" opacity=".9"/><path d="M43 18c5.4 2.7 8.7 7.7 8.7 14s-3.3 11.3-8.7 14" fill="none" stroke="#bfe0ff" stroke-width="2.4" stroke-linecap="round"/><path d="M46.4 23.2c3 2 4.8 5.3 4.8 8.8s-1.8 6.8-4.8 8.8" fill="none" stroke="#8cc4ff" stroke-width="2.2" stroke-linecap="round" opacity=".9"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 5v6h-6"/></svg>',
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -551,7 +552,7 @@ function renderShell() {
   app.innerHTML = `
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true"></div>
+        <span class="brand-mark" aria-hidden="true">${ICONS.logo}</span>
         <div>
           <div class="brand-name">Pocket</div>
           <div class="brand-sub" id="list-sub">正在读取会话…</div>
