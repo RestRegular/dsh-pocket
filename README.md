@@ -12,6 +12,8 @@
 - **图片消息**：从相册选择最多 4 张图片随消息发送；Markdown 图片和表格可在聊天流里正常渲染。
 - **主题切换**：顶栏按钮在「跟随系统 / 浅色 / 深色」之间循环，选择保存在 `localStorage`，刷新后保留。
 - **提问与审批**：手机在线时接管 `user-questions/request` 与 `approval/request` waterfall；前台阻塞提问可直接作答，工具审批可选择「允许一次 / 拒绝」。手机切到任意会话时，WebSocket 会补发该会话仍在等待的提问/审批；手机作答后桌面端残留的弹窗会同步撤掉。continued 提问仍从投影显示。手机离线时自动回落到桌面 answerer。
+- **跨会话提醒**：别的会话被提问或审批阻塞时，手机页面顶部会弹出提示（显示会话标题与工具名/问题摘要），点一下直接切到对应会话；在会话页里只提示「其他会话」，当前会话仍用输入框上方的问答条处理。提示会随桌面/手机的回答自动消失，也可以手动忽略。
+- **账户余额**：首页顶部显示当前 DeepSeek 平台账户余额与赠金，点击可刷新；未登录、API Key 模式或查询失败时不显示，不打扰使用。
 - **多种隧道**：`cloudflared`（Quick Tunnel，无浏览器拦截页）、`localtunnel`、`localhost.run`，或 **自有服务器 SSH 反向转发**（服务器只需 Node.js，无需改 sshd）；也可以填自定义命令或固定的 `publicUrl`。
 - **扫码即用**：桌面面板生成带令牌的二维码，手机相机一扫就打开。
 - **桌面 Pocket 面板**：状态概览 + 自定义下拉（公网入口 / 局域网 IP）+ 公网/局域网双二维码和访问地址集中展示，操作更顺手。
@@ -126,6 +128,8 @@ sshExposePort: 80
 - 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。
 - 新建会话：直接点工作区标题右侧的 `+`，新会话自动挂到该工作区。
 - 历史翻页：顶部「加载更早的消息」。
+- 账户余额：首页顶部的余额卡片显示平台账户余额（正金额截断到分，小于一分显示 `<0.01`）与可用赠金，点卡片可立即刷新；Host 端缓存 60 秒，避免频繁请求平台。
+- 跨会话提醒：顶部浮层按会话显示仍在等待的提问/审批，点击切到该会话，右侧 `×` 忽略；当前会话的待办不会重复弹提示。首页的事件流断开时会话列表轮询也会同步这些提示。
 
 ## HTTP 接口
 
@@ -134,7 +138,8 @@ sshExposePort: 80
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/` | 移动页面（无令牌时显示解锁页）。 |
-| GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组。 |
+| GET | `/api/balance` | 当前账户余额与赠金；`?force=1` 绕过 60 秒缓存。未登录/API Key 模式返回 `available: false`。 |
+| GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组和 `pending`（等待回答的提问/审批摘要）。 |
 | POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
 | GET | `/api/sessions/:id` | 标题、目录、运行状态。 |
 | POST | `/api/sessions/:id/pin` | `{ "pinned": true \| false }`，置顶/取消置顶（置顶集合由桌面共用，手机只在所属工作区内排序）。 |
@@ -142,6 +147,7 @@ sshExposePort: 80
 | POST | `/api/sessions/:id/unarchive` | 取消归档。 |
 | POST | `/api/sessions/:id/rename` | `{ "title": "..." }`，钉住会话标题。 |
 | WS | `/ws/session/:id?token=...` | 手机端使用的会话流：`hello`、`snapshot-meta` / `snapshot-batch` / `snapshot-end`、`frame`；以及 `question-request` / `approval-request` / `interaction-closed` 前台交互。 |
+| WS | `/ws/events?token=...` | 首页全局事件流：连接时补发 `interactions`（待办列表），之后推送 `interaction-pending` / `interaction-update` / `interaction-resolved`，用于跨会话顶部提醒。 |
 | GET | `/api/sessions/:id/follow` | SSE 版本，保留给 curl/调试；注意部分隧道会缓冲 SSE 响应。 |
 | GET | `/api/sessions/:id/page?throughSeq=&beforeSeq=` | 历史翻页。 |
 | POST | `/api/sessions/:id/prompt` | `{ "text": "...", "mode": "auto" \| "queue" \| "steer", "images": [{ "mediaType", "data", "name" }] }`；`auto` 在运行中读取桌面 `busyEnter`。 |

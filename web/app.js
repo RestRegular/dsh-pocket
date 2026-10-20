@@ -167,6 +167,7 @@ const ICONS = {
   chevronDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 9 7 7 7-7"/></svg>',
   image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 4.5-4.5 3.5 3.5 2.5-2.5L19 17"/></svg>',
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="7" cy="17" r="2"/></svg>',
+  wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H18a1 1 0 0 1 1 1v2"/><rect x="3.5" y="8" width="17" height="11.5" rx="3"/><path d="M20.5 12H16a2 2 0 0 0 0 4h4.5"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
@@ -488,6 +489,9 @@ const state = {
   listTimer: undefined,
   current: undefined,
   pendingTexts: [],
+  balance: undefined,
+  alerts: new Map(),
+  dismissedAlerts: new Set(),
 };
 
 function stopListTimer() {
@@ -504,7 +508,10 @@ function stopListTimer() {
 function showUnlock(message) {
   stopListTimer();
   closeChat();
+  disconnectEvents();
+  state.alerts.clear();
   state.view = 'unlock';
+  renderAlerts();
   app.innerHTML = '';
   const wrap = el('div', 'unlock');
   const card = el('div', 'modal');
@@ -555,6 +562,7 @@ function renderShell() {
       <button class="iconbtn" id="refresh" title="刷新">${ICONS.refresh}</button>
     </header>
     <div class="list-scroll" id="list-scroll">
+      <button class="balance-card" id="balance-card" hidden title="点击刷新余额"></button>
       <div class="search">${ICONS.search}<input id="search" placeholder="搜索会话、工作区或目录" autocomplete="off"></div>
       <div id="session-list"></div>
     </div>`;
@@ -576,6 +584,8 @@ function applySessionPayload(payload) {
   // 置顶集合按“最近置顶在前”返回，组内置顶行按这个顺序排。
   const pinnedRows = Array.isArray(payload.pinned) ? payload.pinned : [];
   state.pinnedIds = pinnedRows.map((row) => row.id);
+  // 会话列表顺带带回待处理提问/审批；事件流断开时靠轮询也能更新顶部提示。
+  if (Array.isArray(payload.pending)) replaceAlerts(payload.pending);
 }
 
 async function loadSessions(options = {}) {
@@ -594,6 +604,9 @@ async function loadSessions(options = {}) {
     renderShell();
     bindListEvents();
     renderSessionList();
+    renderAlerts();
+    void ensureBalance(false);
+    ensureEvents();
     stopListTimer();
     state.listTimer = setInterval(() => {
       if (state.view === 'list' && document.visibilityState === 'visible') {
@@ -618,6 +631,13 @@ function bindListEvents() {
     bindListEvents();
     renderSessionList();
   });
+  document.querySelector('#balance-card')?.addEventListener('click', () => {
+    const card = document.querySelector('#balance-card');
+    card?.classList.add('loading');
+    void ensureBalance(true).finally(() => {
+      document.querySelector('#balance-card')?.classList.remove('loading');
+    });
+  });
   const search = document.querySelector('#search');
   if (search !== null) {
     search.value = state.filter;
@@ -626,6 +646,7 @@ function bindListEvents() {
       renderSessionList();
     });
   }
+  renderBalance();
 }
 
 async function refreshSessionsQuietly() {
@@ -638,6 +659,297 @@ async function refreshSessionsQuietly() {
     }
   } catch {
     state.connected = false;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 账户余额                                                                    */
+/* -------------------------------------------------------------------------- */
+
+let balanceFetchedAt = 0;
+
+/**
+ * 把平台的原始余额字符串格式化成 `¥12.34` / `-$0.50`。
+ * 正金额截断到分，小于一分显示 `<0.01`；负金额按四舍五入显示。
+ * @param {string | number} balance
+ * @param {string | undefined} currency
+ * @returns {string}
+ */
+function formatMoney(balance, currency) {
+  const symbol = currency === 'USD' ? '$' : '¥';
+  const value = Number(balance);
+  if (!Number.isFinite(value)) return `${symbol}${String(balance ?? '')}`;
+  const negative = value < 0;
+  const abs = Math.abs(value);
+  const cents = negative ? Math.round(abs * 100) / 100 : Math.floor(abs * 100) / 100;
+  const sign = negative ? '-' : '';
+  if (cents === 0 && abs > 0) return `${sign}${symbol}<0.01`;
+  return `${sign}${symbol}${cents.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function renderBalance() {
+  const card = document.querySelector('#balance-card');
+  if (card === null) return;
+  if (state.features?.balance !== true) {
+    card.hidden = true;
+    card.replaceChildren();
+    return;
+  }
+  const payload = state.balance;
+  if (payload === undefined) {
+    card.hidden = false;
+    card.innerHTML = `
+      <span class="balance-glyph">${ICONS.wallet}</span>
+      <span class="balance-text">
+        <span class="balance-label">账户余额</span>
+        <span class="balance-value">读取中…</span>
+      </span>`;
+    return;
+  }
+  if (payload.available !== true) {
+    // 未登录、API Key 模式或查询失败时不打扰用户，直接隐藏卡片。
+    card.hidden = true;
+    return;
+  }
+  const wallets = (payload.wallets ?? []).map((wallet) => formatMoney(wallet.balance, wallet.currency));
+  const bonuses = (payload.bonusWallets ?? [])
+    .filter((wallet) => Number(wallet.balance) > 0)
+    .map((wallet) => `赠金 ${formatMoney(wallet.balance, wallet.currency)}`);
+  card.hidden = false;
+  card.innerHTML = `
+    <span class="balance-glyph">${ICONS.wallet}</span>
+    <span class="balance-text">
+      <span class="balance-label">账户余额</span>
+      <span class="balance-value">${escapeHtml(wallets.length > 0 ? wallets.join(' · ') : '暂无可用额度')}</span>
+    </span>
+    ${bonuses.length > 0 ? `<span class="balance-bonus">${escapeHtml(bonuses.join(' · '))}</span>` : ''}
+    <span class="balance-refresh">${ICONS.refresh}</span>`;
+}
+
+/**
+ * 读取余额：默认使用 60 秒客户端缓存；点击卡片时强制刷新。
+ * @param {boolean} force
+ * @returns {Promise<void>}
+ */
+async function ensureBalance(force = false) {
+  if (state.features?.balance !== true) {
+    renderBalance();
+    return;
+  }
+  if (!force && state.balance !== undefined && Date.now() - balanceFetchedAt < 60_000) {
+    renderBalance();
+    return;
+  }
+  renderBalance();
+  try {
+    const payload = await api(`/api/balance${force ? '?force=1' : ''}`);
+    state.balance = payload;
+    balanceFetchedAt = Date.now();
+  } catch {
+    if (state.balance === undefined) state.balance = { available: false, reason: 'failed' };
+  }
+  renderBalance();
+}
+
+/* -------------------------------------------------------------------------- */
+/* 全局提醒：别的会话被提问/审批阻塞                                             */
+/* -------------------------------------------------------------------------- */
+
+let eventsSocket;
+let eventsTimer;
+let eventsBackoff = 1000;
+
+function alertText(item) {
+  if (item?.interactionKind === 'approval') return `请求批准：${item.toolName ?? '工具'}`;
+  const count = Number(item?.count);
+  return count > 1 ? `有 ${count} 个问题等待回答` : '有提问等待回答';
+}
+
+/**
+ * 会话页只显示“其他会话”的提示；当前会话由输入框上方的问答条负责。
+ * @returns {object[]}
+ */
+function visibleAlerts() {
+  const currentId = state.current?.id;
+  return [...state.alerts.values()]
+    .filter((item) => item.sessionId !== currentId)
+    .sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0));
+}
+
+function renderAlerts() {
+  let container = document.getElementById('alerts');
+  if (container === null) {
+    container = el('div', 'alerts');
+    container.id = 'alerts';
+    document.body.appendChild(container);
+  }
+  const items = state.view === 'unlock' ? [] : visibleAlerts();
+  if (items.length === 0) {
+    container.replaceChildren();
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+  const shown = items.slice(-3);
+  const extra = items.length - shown.length;
+  container.innerHTML = shown.map((item) => {
+    const title = item.title === undefined ? '其他会话' : `「${item.title}」`;
+    const icon = item.interactionKind === 'approval' ? ICONS.tool : ICONS.question;
+    return `
+      <div class="alert" role="button" tabindex="0" data-alert-session="${escapeHtml(item.sessionId)}">
+        <span class="alert-icon">${icon}</span>
+        <span class="alert-copy">
+          <span class="alert-title">${escapeHtml(title)}</span>
+          <span class="alert-text">${escapeHtml(alertText(item))}</span>
+        </span>
+        <span class="alert-go">查看</span>
+        <button class="alert-close" type="button" data-alert-dismiss="${escapeHtml(item.requestId)}" title="忽略这条提示" aria-label="忽略">${ICONS.close}</button>
+      </div>`;
+  }).join('') + (extra > 0 ? `<div class="alerts-extra">还有 ${extra} 条提醒</div>` : '');
+
+  for (const node of container.querySelectorAll('[data-alert-session]')) {
+    const open = () => {
+      // 弹层打开时直接切会话会留下遮罩。
+      for (const mask of document.querySelectorAll('.modal-mask')) mask.remove();
+      openSession(node.dataset.alertSession);
+    };
+    node.addEventListener('click', (event) => {
+      const dismiss = event.target.closest?.('[data-alert-dismiss]');
+      if (dismiss !== null && dismiss !== undefined) {
+        event.stopPropagation();
+        const requestId = dismiss.dataset.alertDismiss;
+        if (typeof requestId === 'string') {
+          state.dismissedAlerts.add(requestId);
+          state.alerts.delete(requestId);
+          renderAlerts();
+        }
+        return;
+      }
+      open();
+    });
+    node.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      open();
+    });
+  }
+}
+
+function sameAlerts(next) {
+  if (next.size !== state.alerts.size) return false;
+  for (const [requestId, item] of next) {
+    const previous = state.alerts.get(requestId);
+    if (previous === undefined) return false;
+    if (previous.title !== item.title
+      || previous.interactionKind !== item.interactionKind
+      || previous.count !== item.count
+      || previous.toolName !== item.toolName) return false;
+  }
+  return true;
+}
+
+function replaceAlerts(pending) {
+  const next = new Map();
+  for (const item of Array.isArray(pending) ? pending : []) {
+    if (item === null || typeof item !== 'object' || typeof item.requestId !== 'string') continue;
+    if (state.dismissedAlerts.has(item.requestId)) continue;
+    next.set(item.requestId, item);
+  }
+  // 8 秒一次的列表轮询大部分时候内容不变，避免重复重绘让提示反复闪入。
+  if (sameAlerts(next)) return;
+  state.alerts = next;
+  renderAlerts();
+}
+
+function upsertAlert(item) {
+  if (item === null || typeof item !== 'object' || typeof item.requestId !== 'string') return;
+  if (state.dismissedAlerts.has(item.requestId)) return;
+  state.alerts.set(item.requestId, item);
+  renderAlerts();
+}
+
+function removeAlert(requestId) {
+  if (typeof requestId !== 'string' || requestId.length === 0) return;
+  state.alerts.delete(requestId);
+  state.dismissedAlerts.delete(requestId);
+  renderAlerts();
+}
+
+function ensureEvents() {
+  if (state.features?.notifications !== true) return;
+  if (token.length === 0 || state.view === 'unlock') return;
+  if (eventsSocket !== undefined) return;
+  connectEvents();
+}
+
+function connectEvents() {
+  if (token.length === 0 || state.features?.notifications !== true) return;
+  clearTimeout(eventsTimer);
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  let socket;
+  try {
+    socket = new WebSocket(`${scheme}://${window.location.host}/ws/events?token=${encodeURIComponent(token)}`);
+  } catch {
+    scheduleEventsReconnect();
+    return;
+  }
+  eventsSocket = socket;
+  socket.onopen = () => {
+    eventsBackoff = 1000;
+  };
+  socket.onmessage = (event) => {
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (message.kind === 'interactions') {
+      replaceAlerts(message.pending);
+    } else if (message.kind === 'interaction-pending' || message.kind === 'interaction-update') {
+      upsertAlert(message);
+    } else if (message.kind === 'interaction-resolved') {
+      removeAlert(message.requestId);
+    }
+  };
+  socket.onerror = () => {
+    if (eventsSocket !== socket) return;
+    try {
+      socket.close();
+    } catch {
+      /* ignore */
+    }
+  };
+  socket.onclose = () => {
+    if (eventsSocket !== socket) return;
+    eventsSocket = undefined;
+    scheduleEventsReconnect();
+  };
+}
+
+function scheduleEventsReconnect() {
+  clearTimeout(eventsTimer);
+  if (token.length === 0 || state.view === 'unlock' || state.features?.notifications !== true) return;
+  eventsTimer = setTimeout(() => {
+    connectEvents();
+  }, eventsBackoff);
+  eventsBackoff = Math.min(eventsBackoff * 2, 30_000);
+}
+
+function disconnectEvents() {
+  clearTimeout(eventsTimer);
+  eventsTimer = undefined;
+  const socket = eventsSocket;
+  eventsSocket = undefined;
+  if (socket !== undefined) {
+    try {
+      socket.close();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -1174,6 +1486,8 @@ function openChat(id) {
     renderFrame: 0,
   };
   renderChatShell();
+  renderAlerts();
+  ensureEvents();
   void loadChatMeta(id);
   void loadCapabilities(id);
   void loadControls(id);
@@ -1315,6 +1629,8 @@ async function loadCapabilities(id) {
     const tools = document.querySelector('.composer-tools');
     if (tools !== null) tools.style.display = status.features?.controls === true ? 'flex' : 'none';
     if (status.features?.controls === true) updateModelChip();
+    if (status.features?.notifications === true) ensureEvents();
+    else disconnectEvents();
     if (status.features?.questions !== true) {
       clearInterval(current.questionTimer);
       current.questions = [];
@@ -2669,9 +2985,12 @@ function route() {
 
 window.addEventListener('hashchange', route);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.view === 'list') {
+  if (document.visibilityState !== 'visible') return;
+  if (state.view === 'list') {
     void refreshSessionsQuietly();
+    void ensureBalance(false);
   }
+  ensureEvents();
 });
 
 if (token.length === 0) {
