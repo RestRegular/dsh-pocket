@@ -13,6 +13,8 @@
         lan: true
         # auto = 依次尝试 cloudflared → localtunnel → localhost.run
         tunnel: auto
+        # 启动即保持电脑常亮（不熄屏、不休眠）；面板/手机上的开关会覆盖它并持久化。
+        keepAwake: false
         # 自有服务器转发示例（把 tunnel 改成 ssh 并取消以下注释；IP 仅为文档示例）：
         # sshHost: 203.0.113.10
         # sshUser: root

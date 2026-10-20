@@ -74,6 +74,7 @@ a { color: var(--accent); text-decoration: none; }
 }
 .iconbtn:hover, .iconbtn:active { background: var(--card-2); color: var(--text); }
 .iconbtn.active { background: var(--accent-soft); color: var(--accent); }
+.iconbtn:disabled { opacity: .4; cursor: default; }
 .iconbtn svg { width: 19px; height: 19px; }
 .iconbtn.busy svg { animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -406,6 +407,7 @@ a { color: var(--accent); text-decoration: none; }
 
 /* ---------- 输入区 ---------- */
 .composer {
+  position: relative;
   flex: none;
   padding: 9px 12px calc(9px + var(--safe-bottom));
   background: rgba(11, 14, 20, .92);
@@ -413,6 +415,22 @@ a { color: var(--accent); text-decoration: none; }
   -webkit-backdrop-filter: blur(16px);
   border-top: 1px solid var(--line-soft);
 }
+.scroll-bottom {
+  position: absolute;
+  right: 14px;
+  bottom: calc(100% + 10px);
+  width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--dim);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .38);
+  z-index: 6;
+}
+.scroll-bottom[hidden] { display: none; }
+.scroll-bottom:hover, .scroll-bottom:active { background: var(--card-2); color: var(--text); }
+.scroll-bottom svg { width: 18px; height: 18px; }
 .composer-box {
   display: flex; flex-direction: column; align-items: stretch; gap: 6px;
   max-width: 820px; margin: 0 auto;

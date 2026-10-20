@@ -19,6 +19,7 @@
 - **主屏幕图标**：manifest 提供 192/512 与 maskable PNG，iOS 的 `apple-touch-icon` 用 180/192 PNG（SVG 在 iOS 主屏幕上会显示空白），添加到主屏幕后图标正常。
 - **桌面 Pocket 面板**：状态概览 + 自定义下拉（公网入口 / 局域网 IP）+ 公网/局域网双二维码和访问地址集中展示，操作更顺手。
 - **局域网 IP 切换**：面板「访问地址」里用下拉框选择要用的网卡/IP；二维码和分享链接优先使用选中的地址，选择会持久化。无公网隧道时二维码直接指向该局域网 IP。
+- **电脑常亮**：桌面面板和手机顶栏的一键开关，阻止系统与屏幕因空闲休眠——Windows 走 `SetThreadExecutionState`，macOS 用 `caffeinate`，Linux 用 `systemd-inhibit`；选择会持久化，DSH 退出即释放，不会留下一直阻止睡眠的孤儿进程。
 - **令牌保护**：128 位随机访问令牌；支持 Cookie / URL / 请求头三种携带方式，面板可一键轮换。
 - **轻量依赖**：一个 `ws`（WebSocket 服务端），二维码编码器随包内嵌；宿主和移动页面其余部分都是原生 ESM。
 
@@ -68,6 +69,8 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | `sshExposeHost` | `0.0.0.0` | 服务器 TCP 代理绑定地址；若用 Nginx/Caddy 反代可设为 `127.0.0.1`。 |
 | `sshPublicUrl` | 无 | 自有域名/HTTPS 入口；设置后二维码使用它，而不是 `http://<sshHost>:<sshExposePort>`。 |
 | `token` | 自动生成 | 固定访问令牌；留空时使用 `~/.dsh/pocket/state.json` 里持久化的令牌。 |
+| `keepAwake` | `false` | 启动后自动保持电脑不休眠；也可以随时在桌面面板或手机顶栏开关，面板上的选择优先。 |
+| `keepAwakeDisplay` | `true` | 常亮时是否同时阻止屏幕关闭；设 `false` 只阻止系统睡眠（Windows/macOS）。 |
 
 ### 用自有服务器转发
 
@@ -97,7 +100,7 @@ sshExposePort: 80
 
 > 直接监听公网 80 时是 **HTTP**，令牌和会话内容会以明文经过网络。生产使用建议让 `sshExposeHost: 127.0.0.1`，再在服务器上用 Nginx/Caddy 做 HTTPS 反代，并把 `sshPublicUrl` 指到 HTTPS 地址。
 
-状态文件保存访问令牌、创建时间、面板选中的局域网 IP 和公网入口：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
+状态文件保存访问令牌、创建时间、面板选中的局域网 IP、公网入口和「保持电脑常亮」开关：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
 
 桌面 **Pocket** 面板的「公网入口」可以在 **Cloudflared（默认）** 和 **自有服务器** 之间切换；填入服务器 IP/域名后点「切换」即可，选择会写入状态文件，DSH 重启后保留。
 
@@ -124,13 +127,14 @@ sshExposePort: 80
 
 - 会话列表：按工作区分组（顺序与桌面侧栏一致）、标题、运行状态、最新活动时间；工作区可折叠/展开并记住状态；每个工作区标题右侧的 `+` 直接在对应目录新建会话；空会话（点过新建但没发消息）不显示；顶部按钮切换是否显示已归档会话；搜索会话/工作区/目录。
 - 会话操作：会话行右侧「更多」→ 置顶/取消置顶（只在所属工作区内排到最前）、重命名、归档/取消归档、复制 Session ID。归档运行中的会话会先确认，Host 拒绝时再提供「停止并归档」。
-- 聊天流：用户/助手消息、Markdown（标题、列表、代码块、表格、图片）、思考过程折叠、工具调用参数与结果、token 用量。Markdown 里的相对图片路径按当前会话工作区解析。
+- 聊天流：用户/助手消息、Markdown（标题、列表、代码块、表格、图片）、思考过程折叠、工具调用参数与结果、token 用量。Markdown 里的相对图片路径按当前会话工作区解析。往上翻看历史时，输入框上方出现「回到底部」按钮，一键滚回最新消息。
 - 工具卡片：默认折叠，标题里显示自动截断的命令/路径/查询摘要；点开看完整参数与结果，展开状态在流式重绘时保持。
 - 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。选图后先在本地压缩（长边 2048px、单张约 ≤1.5 MB），支持 png/jpeg/webp/gif/heic/heif/avif；单张上限 6 MB、总计 15 MB。
 - 新建会话：直接点工作区标题右侧的 `+`，新会话自动挂到该工作区。
 - 历史翻页：顶部「加载更早的消息」。
 - 账户余额：首页顶部的余额卡片显示平台账户余额（正金额截断到分，小于一分显示 `<0.01`）与可用赠金，点卡片可立即刷新；Host 端缓存 60 秒，避免频繁请求平台。
 - 跨会话提醒：顶部浮层按会话显示仍在等待的提问/审批，点击切到该会话，右侧 `×` 忽略；当前会话的待办不会重复弹提示。首页的事件流断开时会话列表轮询也会同步这些提示。
+- 电脑常亮：顶栏闪电按钮切换宿主的「保持系统不休眠」（默认连屏幕一起保持），状态与桌面面板同步；切换结果由 Host 持久化，DSH 重启后恢复。
 
 ## HTTP 接口
 
@@ -142,6 +146,7 @@ sshExposePort: 80
 | GET | `/api/balance` | 当前账户余额与赠金；`?force=1` 绕过 60 秒缓存。未登录/API Key 模式返回 `available: false`。 |
 | GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组和 `pending`（等待回答的提问/审批摘要）。 |
 | POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
+| POST | `/api/keep-awake` | `{ "enabled": true \| false }`，打开/关闭宿主的「保持电脑常亮」，返回最新 `awake` 状态。 |
 | GET | `/api/sessions/:id` | 标题、目录、运行状态。 |
 | POST | `/api/sessions/:id/pin` | `{ "pinned": true \| false }`，置顶/取消置顶（置顶集合由桌面共用，手机只在所属工作区内排序）。 |
 | POST | `/api/sessions/:id/archive` | `{ "stopActivity": true }` 可先停止仍在跑的工作；被拒绝时返回 409 与 `code: "workspace/session-active"`。 |
@@ -162,7 +167,7 @@ sshExposePort: 80
 | GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件。 |
 | GET | `/api/sessions/:id/file?path=preview/x.png` | 读取会话工作区内的图片，供 Markdown 相对路径图片使用。 |
 
-桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`restart`。
+桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`restart`。
 
 模型工具 `pocket_share` 会把当前手机入口地址交给模型，方便用户直接要链接。
 
@@ -174,6 +179,7 @@ sshExposePort: 80
 - **置顶**：置顶会话会在所属工作区内排到最前并显示标记，但没有单独的「置顶」分组；置顶集合与桌面共用。
 - **删除会话**：DSH 本身不提供删除会话的能力（桌面端也只有归档，会话日志只累积不删除），所以手机端同样只做归档；归档后可在顶部「已归档」里恢复。
 - **PWA 离线**：有 manifest，但没有 Service Worker 离线缓存。
+- **常亮与锁屏**：常亮阻止的是空闲熄屏与睡眠；Windows 的锁屏/登录界面仍由屏幕保护和安全策略决定。Windows 需要系统自带的 PowerShell（`powershell.exe`，缺失时回退 `pwsh.exe`）；Linux 需要 `systemd-inhibit`。
 
 ## 开发
 
@@ -181,12 +187,13 @@ sshExposePort: 80
 node --check lib\index.js
 node --check lib\server.js
 node --check lib\tunnel.js
+node --check lib\awake.js
 node --check web\app.js
 node --check client\client.js
 pnpm install   # 拉取 ws，以及 Windows x64 的可选 cloudflared 二进制
 ```
 
-- 宿主：`lib/index.js` 负责配置、生命周期与桌面面板路由；`lib/server.js` 是移动 HTTP/WS 服务；`lib/tunnel.js` 管理隧道子进程。
+- 宿主：`lib/index.js` 负责配置、生命周期与桌面面板路由；`lib/server.js` 是移动 HTTP/WS 服务；`lib/tunnel.js` 管理隧道子进程；`lib/awake.js` 与 `lib/awake-win.ps1` 负责保持电脑常亮。
 - 移动页面：`web/`（原生 ESM，无构建）。
 - 桌面面板：`client/client.js`，注册 `sidebar.panellist` 与 `main` 两个 slot。
 

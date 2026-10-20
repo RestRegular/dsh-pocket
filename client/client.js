@@ -107,6 +107,16 @@ if (!alreadyRegistered()) {
         log: '隧道输出',
         qrTitle: '扫码连接',
         qrHint: '用手机相机扫描二维码，即可打开 Pocket。',
+        awakeCard: '电脑常亮',
+        awakeHint: '让系统不因空闲睡眠，远程连接保持可用。',
+        awakeOn: '已开启',
+        awakeOff: '已关闭',
+        awakeEnable: '开启常亮',
+        awakeDisable: '关闭常亮',
+        awakeIdleHint: '开启后系统与屏幕都不会因空闲关闭，正在运行的任务不会因电脑睡眠中断。',
+        awakeActiveHint: '系统与屏幕正被阻止进入空闲睡眠。',
+        awakeUnsupported: '当前平台不支持保持常亮。',
+        awakeNote: '开关状态会保存，DSH 重启后恢复；锁屏仍由系统安全策略/屏幕保护决定。',
       };
 
       const EN = {
@@ -183,6 +193,16 @@ if (!alreadyRegistered()) {
         log: 'Tunnel output',
         qrTitle: 'Scan to connect',
         qrHint: 'Scan this code with a phone camera to open Pocket.',
+        awakeCard: 'Keep awake',
+        awakeHint: 'Stop the system from idle-sleeping so remote access stays available.',
+        awakeOn: 'Active',
+        awakeOff: 'Off',
+        awakeEnable: 'Keep awake',
+        awakeDisable: 'Turn off',
+        awakeIdleHint: 'While on, the system and display stay out of idle sleep, so running tasks are not interrupted.',
+        awakeActiveHint: 'Idle sleep of the system and display is being blocked.',
+        awakeUnsupported: 'Keep-awake is not supported on this platform.',
+        awakeNote: 'The choice is saved and restored when DSH restarts. Lock screen policy is still controlled by the OS.',
       };
 
       const LANG = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? ZH : EN;
@@ -386,6 +406,7 @@ if (!alreadyRegistered()) {
         chevron: ['m8 10 4 4 4-4'],
         check: ['m6 12 4 4 8-8'],
         plug: ['M9 7V3.5M15 7V3.5', 'M7 7h10v4a5 5 0 0 1-10 0z', 'M12 16v4.5'],
+        bolt: ['M13 2.5 5 13.5h6.2L11 21.5l8-11h-6.2z'],
       };
 
       function LineIcon({ name, size = 16, className }) {
@@ -648,6 +669,10 @@ if (!alreadyRegistered()) {
           h('b', { className: 'dsh-pk-stat-value' }, value),
           h('span', { className: 'dsh-pk-stat-sub' }, sub),
         );
+        const awake = status.awake ?? { supported: false, active: false, error: null };
+        const toggleAwake = () => {
+          void action('keep-awake', { enabled: awake.active !== true });
+        };
 
         return h('div', { className: 'dsh-pk' },
           h('div', { className: 'dsh-pk-head' },
@@ -758,6 +783,32 @@ if (!alreadyRegistered()) {
                     h('pre', { className: 'dsh-pk-log' }, tunnel.log.slice(-8).join('\n')),
                   )
                   : null,
+              ),
+              h('section', { className: 'dsh-pk-card' },
+                h('div', { className: 'dsh-pk-card-top' },
+                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'bolt', size: 16 })),
+                  h('div', { className: 'dsh-pk-card-heading' },
+                    h('span', { className: 'dsh-pk-card-title' }, LANG.awakeCard),
+                    h('span', { className: 'dsh-pk-card-sub' }, LANG.awakeHint),
+                  ),
+                  h(StatusPill, { tone: awake.active ? 'on' : '', label: awake.active ? LANG.awakeOn : LANG.awakeOff }),
+                ),
+                h('div', { className: 'dsh-pk-field' },
+                  h('span', { className: 'dsh-pk-hint' }, awake.supported === false
+                    ? LANG.awakeUnsupported
+                    : awake.active ? LANG.awakeActiveHint : LANG.awakeIdleHint),
+                ),
+                awake.error !== undefined && awake.error !== null
+                  ? h('div', { className: 'dsh-pk-err' }, String(awake.error))
+                  : null,
+                h('div', { className: 'dsh-pk-actions' },
+                  h('button', {
+                    className: awake.active ? 'dsh-pk-btn' : 'dsh-pk-btn primary',
+                    disabled: busy !== '' || awake.supported === false,
+                    onClick: toggleAwake,
+                  }, busy === 'keep-awake' ? LANG.switching : (awake.active ? LANG.awakeDisable : LANG.awakeEnable)),
+                ),
+                h('div', { className: 'dsh-pk-note' }, LANG.awakeNote),
               ),
             ),
             h('section', { className: 'dsh-pk-card dsh-pk-connect-card' },

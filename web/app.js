@@ -168,6 +168,7 @@ const ICONS = {
   chevronDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 9 7 7 7-7"/></svg>',
   image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 4.5-4.5 3.5 3.5 2.5-2.5L19 17"/></svg>',
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="7" cy="17" r="2"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5 5 13.5h6.2L11 21.5l8-11h-6.2z"/></svg>',
   wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H18a1 1 0 0 1 1 1v2"/><rect x="3.5" y="8" width="17" height="11.5" rx="3"/><path d="M20.5 12H16a2 2 0 0 0 0 4h4.5"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
@@ -475,6 +476,7 @@ const state = {
   archived: [],
   counts: { total: 0, workspaces: 0, archived: 0 },
   features: undefined,
+  awake: undefined,
   pinnedIds: [],
   showArchived: localStorage.getItem('dsh_pocket_show_archived') === '1',
   collapsed: (() => {
@@ -560,6 +562,7 @@ function renderShell() {
       </div>
       <button class="iconbtn theme-toggle" title="主题"></button>
       <button class="iconbtn${state.showArchived ? ' active' : ''}" id="archived-toggle" title="${state.showArchived ? '隐藏已归档会话' : '显示已归档会话'}" aria-label="已归档">${ICONS.archive}</button>
+      <button class="iconbtn" id="awake-toggle" title="电脑常亮" aria-label="保持电脑常亮" aria-pressed="false">${ICONS.bolt}</button>
       <button class="iconbtn" id="refresh" title="刷新">${ICONS.refresh}</button>
     </header>
     <div class="list-scroll" id="list-scroll">
@@ -582,6 +585,7 @@ function applySessionPayload(payload) {
   state.counts = payload.counts ?? { total: state.sessions.length, workspaces: state.workspaces.length, archived: state.archived.length };
   // 旧 Host 不返回 features；保持 undefined，行内“更多”入口就不渲染。
   if (payload.features !== undefined) state.features = payload.features;
+  if (payload.awake !== undefined) state.awake = payload.awake;
   // 置顶集合按“最近置顶在前”返回，组内置顶行按这个顺序排。
   const pinnedRows = Array.isArray(payload.pinned) ? payload.pinned : [];
   state.pinnedIds = pinnedRows.map((row) => row.id);
@@ -647,7 +651,51 @@ function bindListEvents() {
       renderSessionList();
     });
   }
+  document.querySelector('#awake-toggle')?.addEventListener('click', () => void toggleAwake());
+  updateAwakeButton();
   renderBalance();
+}
+
+/** 顶栏「电脑常亮」按钮跟随 Host 状态。 */
+function updateAwakeButton() {
+  const button = document.querySelector('#awake-toggle');
+  if (button === null) return;
+  const awake = state.awake;
+  const unsupported = awake?.supported === false;
+  const active = awake?.active === true;
+  button.classList.toggle('active', active);
+  button.disabled = unsupported;
+  button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  button.title = unsupported
+    ? '当前平台不支持保持常亮'
+    : active
+      ? '电脑常亮：已开启（点击关闭）'
+      : '电脑常亮：已关闭（点击开启）';
+}
+
+/** 在手机上开关宿主的「保持电脑常亮」。 */
+async function toggleAwake() {
+  if (state.awake?.supported === false) {
+    toast('当前平台不支持保持常亮');
+    return;
+  }
+  const enabled = state.awake?.active !== true;
+  const button = document.querySelector('#awake-toggle');
+  if (button !== null) button.disabled = true;
+  try {
+    const payload = await api('/api/keep-awake', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+    state.awake = payload.awake;
+    updateAwakeButton();
+    toast(enabled ? '已开启电脑常亮' : '已关闭电脑常亮', 'ok');
+  } catch (error) {
+    toast(error.message ?? '切换失败');
+  } finally {
+    const node = document.querySelector('#awake-toggle');
+    if (node !== null) node.disabled = state.awake?.supported === false;
+  }
 }
 
 async function refreshSessionsQuietly() {
@@ -657,6 +705,7 @@ async function refreshSessionsQuietly() {
     state.connected = true;
     if (state.view === 'list') {
       renderSessionList();
+      updateAwakeButton();
     }
   } catch {
     state.connected = false;
@@ -1528,6 +1577,7 @@ function renderChatShell() {
       </div>
     </div>
     <div class="composer">
+      <button class="scroll-bottom" id="scroll-bottom" hidden title="回到底部" aria-label="滚动到底部">${ICONS.chevronDown}</button>
       <div class="question-dock" id="question-dock"></div>
       <div class="composer-box">
         <div class="composer-tools">
@@ -1599,7 +1649,9 @@ function renderChatShell() {
     if (state.current !== undefined) {
       state.current.nearBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 140;
     }
+    syncScrollButton();
   });
+  document.querySelector('#scroll-bottom').addEventListener('click', () => jumpToBottom());
   autosize(textarea);
   updateSendState();
   bindThemeButtons();
@@ -2387,10 +2439,34 @@ function scrollToBottom(force = false) {
   const scroll = document.querySelector('#chat-scroll');
   if (scroll === null) return;
   if (force || state.current?.nearBottom !== false) {
+    if (state.current !== undefined) state.current.nearBottom = true;
     requestAnimationFrame(() => {
       scroll.scrollTop = scroll.scrollHeight;
     });
   }
+  syncScrollButton();
+}
+
+/** 同步「回到底部」按钮：只在用户翻到上面时出现。 */
+function syncScrollButton() {
+  const button = document.querySelector('#scroll-bottom');
+  if (button === null) return;
+  button.hidden = state.current?.nearBottom !== false;
+}
+
+/** 一键回到底部；优先平滑滚动，尊重“减少动态效果”。 */
+function jumpToBottom() {
+  const scroll = document.querySelector('#chat-scroll');
+  if (scroll !== null) {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    if (!reduceMotion && typeof scroll.scrollTo === 'function') {
+      scroll.scrollTo({ top: scroll.scrollHeight, behavior: 'smooth' });
+    } else {
+      scroll.scrollTop = scroll.scrollHeight;
+    }
+  }
+  if (state.current !== undefined) state.current.nearBottom = true;
+  syncScrollButton();
 }
 
 /* -------------------------------------------------------------------------- */
