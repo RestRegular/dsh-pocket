@@ -131,6 +131,7 @@ sshExposePort: 80
 - 工具卡片：默认折叠，标题里显示自动截断的命令/路径/查询摘要；点开看完整参数与结果，展开状态在流式重绘时保持。
 - 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。选图后先在本地压缩（长边 2048px、单张约 ≤1.5 MB），支持 png/jpeg/webp/gif/heic/heif/avif；单张上限 6 MB、总计 15 MB。
 - 新建会话：直接点工作区标题右侧的 `+`，新会话自动挂到该工作区。
+- 工作区文件树：首页工作区标题右侧的文件夹按钮，或会话顶栏的文件夹按钮，打开手机端文件浏览器；目录按层加载，面包屑可回退。文本/代码文件直接预览（最大 400 KB，超出部分截断），图片直接显示；可复制相对路径或完整路径，会话内还能把文件作为 `@路径` 引用插入输入框（含空格的路径自动写成 `@"..."`，目录带尾斜杠）。
 - 历史翻页：顶部「加载更早的消息」。
 - 账户余额：首页顶部的余额卡片显示平台账户余额（正金额截断到分，小于一分显示 `<0.01`）与可用赠金，点卡片可立即刷新；Host 端缓存 60 秒，避免频繁请求平台。
 - 跨会话提醒：顶部浮层按会话显示仍在等待的提问/审批，点击切到该会话，右侧 `×` 忽略；当前会话的待办不会重复弹提示。首页的事件流断开时会话列表轮询也会同步这些提示。
@@ -166,6 +167,11 @@ sshExposePort: 80
 | POST | `/api/sessions/:id/interactions/:requestId/answer` | 回答前台阻塞提问（`answers`）或审批（`outcome: "allowed-once" \| "rejected"`）。 |
 | GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件。 |
 | GET | `/api/sessions/:id/file?path=preview/x.png` | 读取会话工作区内的图片，供 Markdown 相对路径图片使用。 |
+| GET | `/api/sessions/:id/files?path=src` | 列出会话工作区里的一层目录（`entries`：名称、相对路径、目录/文件、大小、是否文本/图片）；只允许 cwd 子树。 |
+| GET | `/api/sessions/:id/text?path=src/app.js` | 文本预览（最多 400 KB，`truncated` 标记）；图片返回 `image: true`，二进制返回 `binary: true`。 |
+| GET | `/api/workspace/files?root=...&path=` | 首页工作区文件树；`root` 必须是当前列表里已登记的工作区。 |
+| GET | `/api/workspace/text?root=...&path=` | 首页工作区文件预览，规则同上。 |
+| GET | `/api/workspace/file?root=...&path=` | 首页文件树里的图片预览。 |
 
 桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`restart`。
 

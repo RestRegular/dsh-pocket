@@ -74,6 +74,19 @@ function basename(path) {
   return parts.at(-1) ?? path;
 }
 
+/**
+ * 文件大小的短标签，移动端只保留一位小数。
+ * @param {number} size
+ * @returns {string}
+ */
+function formatBytes(size) {
+  const value = typeof size === 'number' && Number.isFinite(size) && size >= 0 ? size : 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(value < 10 * 1024 ? 1 : 0)} KB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
 function relativeTime(timestamp) {
   if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) return '';
   const delta = Date.now() - timestamp;
@@ -511,6 +524,8 @@ function stopListTimer() {
 function showUnlock(message) {
   stopListTimer();
   closeChat();
+  closeFilePreview();
+  closeFileBrowser();
   disconnectEvents();
   state.alerts.clear();
   state.view = 'unlock';
@@ -1044,6 +1059,10 @@ function renderWorkspaceGroup(group, showPathInRows) {
   const addButton = group.kind === 'workspace' && typeof group.path === 'string' && group.path.length > 0
     ? `<button class="ws-add" data-ws-path="${escapeHtml(group.path)}" title="在此工作区新建会话" aria-label="在此工作区新建会话">${ICONS.plus}</button>`
     : '';
+  const filesButton = group.kind === 'workspace' && typeof group.path === 'string' && group.path.length > 0
+    && state.features?.fileTree === true
+    ? `<button class="ws-add ws-files" data-ws-files="${escapeHtml(group.path)}" data-ws-title="${escapeHtml(group.title ?? '工作区')}" title="浏览工作区文件" aria-label="浏览工作区文件">${ICONS.folder}</button>`
+    : '';
   let html = `
     <div class="ws-head ws-${escapeHtml(group.kind)}">
       <button class="ws-toggle" data-ws-key="${escapeHtml(key)}" aria-expanded="${String(!collapsed)}">
@@ -1052,6 +1071,7 @@ function renderWorkspaceGroup(group, showPathInRows) {
         <span class="ws-title">${escapeHtml(group.title)}</span>
         <span class="ws-count">${sessions.length}</span>
       </button>
+      ${filesButton}
       ${addButton}
     </div>`;
   if (collapsed) return html;
@@ -1161,6 +1181,14 @@ function renderSessionList() {
     button.addEventListener('click', (event) => {
       event.stopPropagation();
       void createSessionInWorkspace(button.dataset.wsPath);
+    });
+  }
+  for (const button of container.querySelectorAll('.ws-files')) {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const path = button.dataset.wsFiles;
+      if (typeof path !== 'string' || path.length === 0) return;
+      openFileBrowser({ root: path, title: button.dataset.wsTitle || '工作区文件' });
     });
   }
   for (const button of container.querySelectorAll('.session')) {
@@ -1488,7 +1516,423 @@ function confirmDialog({ title, message, confirmText = '确定' }) {
 /* 聊天                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/* 工作区文件树 / 预览                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 文件浏览器状态。首页入口只读；会话入口额外支持把文件作为 @ 引用插入输入框。
+ * 一次只保留一个覆盖层：sheet 是文件树，preview 叠在它上面。
+ */
+const fileBrowser = {
+  sessionId: '',
+  root: '',
+  rootLabel: '',
+  path: '',
+  entries: [],
+  truncated: false,
+  loading: false,
+  error: '',
+  request: 0,
+  sheet: null,
+  preview: null,
+};
+
+/**
+ * 文件接口前缀：会话内用 cwd，首页用已登记的工作区根目录。
+ * @returns {string}
+ */
+function fileApiBase() {
+  return fileBrowser.sessionId.length > 0
+    ? `/api/sessions/${encodeURIComponent(fileBrowser.sessionId)}`
+    : '/api/workspace';
+}
+
+/**
+ * @param {'files' | 'text'} kind
+ * @param {string} path
+ * @returns {string}
+ */
+function fileApiUrl(kind, path) {
+  const params = new URLSearchParams({ path: path ?? '' });
+  if (fileBrowser.sessionId.length === 0) params.set('root', fileBrowser.root);
+  return `${fileApiBase()}/${kind}?${params.toString()}`;
+}
+
+/**
+ * 图片预览直接走二进制文件接口；HTML 里不能带请求头，所以令牌放 query。
+ * @param {string} path
+ * @returns {string}
+ */
+function fileImageUrl(path) {
+  const params = new URLSearchParams({ path });
+  if (fileBrowser.sessionId.length === 0) params.set('root', fileBrowser.root);
+  params.set('token', token);
+  return `${fileApiBase()}/file?${params.toString()}`;
+}
+
+/**
+ * 打开工作区文件树。
+ * @param {{ sessionId?: string, root?: string, title?: string }} options
+ */
+function openFileBrowser(options = {}) {
+  if (document.querySelector('#file-sheet') !== null) closeFileBrowser();
+  fileBrowser.sessionId = typeof options.sessionId === 'string' ? options.sessionId : '';
+  fileBrowser.root = typeof options.root === 'string' ? options.root : '';
+  fileBrowser.rootLabel = typeof options.title === 'string' && options.title.length > 0 ? options.title : '工作区文件';
+  fileBrowser.path = '';
+  fileBrowser.entries = [];
+  fileBrowser.truncated = false;
+  fileBrowser.loading = true;
+  fileBrowser.error = '';
+  fileBrowser.request += 1;
+
+  const sheet = el('div', 'file-sheet');
+  sheet.id = 'file-sheet';
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-label', fileBrowser.rootLabel);
+  sheet.innerHTML = `
+    <header class="file-top">
+      <button class="iconbtn" id="file-back" title="返回" aria-label="返回">${ICONS.back}</button>
+      <div class="file-heading">
+        <b id="file-title">${escapeHtml(fileBrowser.rootLabel)}</b>
+        <span id="file-root">${escapeHtml(fileBrowser.root || '正在读取工作区…')}</span>
+      </div>
+      <button class="iconbtn" id="file-refresh" title="刷新" aria-label="刷新">${ICONS.refresh}</button>
+      <button class="iconbtn" id="file-close" title="关闭" aria-label="关闭">${ICONS.close}</button>
+    </header>
+    <div class="file-crumbs" id="file-crumbs"></div>
+    <div class="file-list" id="file-list"></div>`;
+  document.body.appendChild(sheet);
+  fileBrowser.sheet = sheet;
+
+  sheet.querySelector('#file-back').addEventListener('click', () => {
+    if (fileBrowser.path.length > 0) void loadFileDirectory(fileBrowserParentPath(fileBrowser.path));
+    else closeFileBrowser();
+  });
+  sheet.querySelector('#file-close').addEventListener('click', () => closeFileBrowser());
+  sheet.querySelector('#file-refresh').addEventListener('click', () => void loadFileDirectory(fileBrowser.path));
+  // 事件挂在 sheet 上：列表和面包屑都会被重绘，委托监听器不用重新绑定。
+  sheet.addEventListener('click', (event) => {
+    const retry = event.target.closest?.('[data-file-retry]');
+    if (retry !== null && retry !== undefined) {
+      void loadFileDirectory(fileBrowser.path);
+      return;
+    }
+    const nav = event.target.closest?.('[data-file-nav]');
+    if (nav !== null && nav !== undefined) {
+      void loadFileDirectory(nav.dataset.fileNav ?? '');
+      return;
+    }
+    const more = event.target.closest?.('[data-file-more]');
+    if (more !== null && more !== undefined) {
+      const entry = fileBrowser.entries.find((item) => item.path === more.dataset.fileMore);
+      if (entry !== undefined) openFileActions(entry);
+      return;
+    }
+    const open = event.target.closest?.('[data-file-open]');
+    if (open === null || open === undefined) return;
+    const entry = fileBrowser.entries.find((item) => item.path === open.dataset.fileOpen);
+    if (entry === undefined) return;
+    if (entry.kind === 'dir') void loadFileDirectory(entry.path);
+    else openFilePreview(entry);
+  });
+  renderFileBrowser();
+  void loadFileDirectory('');
+}
+
+function closeFileBrowser() {
+  fileBrowser.request += 1;
+  fileBrowser.sheet?.remove();
+  fileBrowser.sheet = null;
+  fileBrowser.sessionId = '';
+  fileBrowser.root = '';
+  fileBrowser.entries = [];
+  fileBrowser.path = '';
+  fileBrowser.error = '';
+}
+
+/**
+ * @param {string} path
+ * @returns {string}
+ */
+function fileBrowserParentPath(path) {
+  const parts = String(path ?? '').split('/').filter(Boolean);
+  parts.pop();
+  return parts.join('/');
+}
+
+/**
+ * @param {string} path
+ * @returns {Promise<void>}
+ */
+async function loadFileDirectory(path) {
+  const request = ++fileBrowser.request;
+  fileBrowser.loading = true;
+  fileBrowser.error = '';
+  renderFileBrowser();
+  try {
+    const payload = await api(fileApiUrl('files', path));
+    if (request !== fileBrowser.request || fileBrowser.sheet === null) return;
+    if (typeof payload.root === 'string' && payload.root.length > 0) fileBrowser.root = payload.root;
+    fileBrowser.path = typeof payload.path === 'string' ? payload.path : '';
+    fileBrowser.entries = Array.isArray(payload.entries) ? payload.entries : [];
+    fileBrowser.truncated = payload.truncated === true;
+    fileBrowser.loading = false;
+    renderFileBrowser();
+    fileBrowser.sheet.querySelector('#file-list')?.scrollTo?.({ top: 0 });
+  } catch (error) {
+    if (request !== fileBrowser.request || fileBrowser.sheet === null) return;
+    fileBrowser.loading = false;
+    fileBrowser.entries = [];
+    fileBrowser.error = error.message ?? String(error);
+    renderFileBrowser();
+  }
+}
+
+function renderFileBrowser() {
+  const sheet = fileBrowser.sheet;
+  if (sheet === null) return;
+  const title = sheet.querySelector('#file-title');
+  if (title !== null) title.textContent = fileBrowser.rootLabel;
+  const root = sheet.querySelector('#file-root');
+  if (root !== null) root.textContent = fileBrowser.root || '正在读取工作区…';
+
+  const crumbs = sheet.querySelector('#file-crumbs');
+  if (crumbs !== null) crumbs.innerHTML = fileCrumbHtml();
+
+  const list = sheet.querySelector('#file-list');
+  if (list === null) return;
+  if (fileBrowser.loading) {
+    list.innerHTML = '<div class="file-boot">正在读取目录…</div>';
+    return;
+  }
+  if (fileBrowser.error.length > 0) {
+    list.innerHTML = `
+      <div class="file-note error">
+        <div>${escapeHtml(fileBrowser.error)}</div>
+        <button class="btn" data-file-retry>重试</button>
+      </div>`;
+    return;
+  }
+  if (fileBrowser.entries.length === 0) {
+    list.innerHTML = `<div class="file-empty"><div class="big">${ICONS.folder}</div><p>这个目录是空的</p></div>`;
+    return;
+  }
+  let html = '';
+  for (const entry of fileBrowser.entries) {
+    const isDir = entry.kind === 'dir';
+    const meta = isDir
+      ? '文件夹'
+      : `${formatBytes(entry.size)}${entry.image === true ? ' · 图片' : entry.text === false ? ' · 二进制' : ''}`;
+    html += `
+      <div class="file-row">
+        <button class="file-main" data-file-open="${escapeHtml(entry.path)}">
+          <span class="file-glyph${isDir ? ' dir' : ''}">${isDir ? ICONS.folder : ICONS.file}</span>
+          <span class="file-body">
+            <span class="file-name">${escapeHtml(entry.name)}${isDir ? '/' : ''}</span>
+            <span class="file-meta">${escapeHtml(meta)}</span>
+          </span>
+          <span class="file-chevron">${isDir ? ICONS.chevron : ''}</span>
+        </button>
+        <button class="file-more" data-file-more="${escapeHtml(entry.path)}" title="更多操作" aria-label="更多操作">${ICONS.more}</button>
+      </div>`;
+  }
+  if (fileBrowser.truncated) {
+    html += '<div class="file-note">目录项太多，只显示前 1000 项。</div>';
+  }
+  list.innerHTML = html;
+}
+
+/**
+ * 面包屑：根是当前工作区，逐级可点。
+ * @returns {string}
+ */
+function fileCrumbHtml() {
+  let html = '<button class="file-crumb" data-file-nav="">工作区</button>';
+  let accumulated = '';
+  for (const part of fileBrowser.path.split('/').filter(Boolean)) {
+    accumulated = accumulated.length === 0 ? part : `${accumulated}/${part}`;
+    html += `<span class="file-crumb-sep">/</span><button class="file-crumb" data-file-nav="${escapeHtml(accumulated)}">${escapeHtml(part)}</button>`;
+  }
+  return html;
+}
+
+/**
+ * 单行的“更多”菜单：预览、复制相对/完整路径、引用。
+ * @param {any} entry
+ */
+function openFileActions(entry) {
+  const isDir = entry.kind === 'dir';
+  const refItem = fileBrowser.sessionId.length > 0
+    ? `<button class="menu-item" data-file-action="reference" role="menuitem">${ICONS.chat}<span class="menu-label">引用到输入框</span></button>`
+    : '';
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal sheet menu-sheet');
+  modal.innerHTML = `
+    <div class="sheet-head">
+      <h3 class="menu-title">${escapeHtml(entry.name)}</h3>
+      <button class="iconbtn" data-file-action="close" title="关闭" aria-label="关闭">${ICONS.close}</button>
+    </div>
+    <div class="menu-list" role="menu">
+      <button class="menu-item" data-file-action="${isDir ? 'open' : 'preview'}" role="menuitem">
+        ${isDir ? ICONS.folder : ICONS.file}<span class="menu-label">${isDir ? '打开文件夹' : '预览文件'}</span>
+      </button>
+      <button class="menu-item" data-file-action="copy" role="menuitem">${ICONS.copy}<span class="menu-label">复制路径</span></button>
+      <button class="menu-item" data-file-action="copy-full" role="menuitem">${ICONS.copy}<span class="menu-label">复制完整路径</span></button>
+      ${refItem}
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  for (const button of modal.querySelectorAll('[data-file-action]')) {
+    button.addEventListener('click', () => {
+      const action = button.dataset.fileAction;
+      if (action === 'close') {
+        close();
+        return;
+      }
+      close();
+      if (action === 'open') void loadFileDirectory(entry.path);
+      else if (action === 'preview') openFilePreview(entry);
+      else if (action === 'copy') void copyFilePath(entry.path);
+      else if (action === 'copy-full') void copyFilePath(fileFullPath(entry.path));
+      else if (action === 'reference') insertFileReference(entry.path, isDir);
+    });
+  }
+}
+
+/**
+ * @param {string} path
+ * @returns {string}
+ */
+function fileFullPath(path) {
+  const root = fileBrowser.root.replace(/[\\/]+$/u, '');
+  const relative = String(path ?? '').replace(/^[\\/]+/u, '');
+  return relative.length === 0 ? root : `${root}/${relative}`;
+}
+
+/**
+ * @param {string} path
+ * @returns {Promise<void>}
+ */
+async function copyFilePath(path) {
+  const copied = await writeClipboard(path);
+  toast(copied ? `已复制 ${path}` : '复制失败，请手动选择路径', copied ? 'ok' : 'error');
+}
+
+/**
+ * 打开文件预览；文本用等宽 <pre>，图片走二进制接口，二进制给出说明。
+ * @param {any} entry
+ */
+async function openFilePreview(entry) {
+  closeFilePreview();
+  const layer = el('div', 'file-preview');
+  layer.id = 'file-preview';
+  layer.setAttribute('role', 'dialog');
+  layer.innerHTML = `
+    <header class="file-top">
+      <button class="iconbtn" id="preview-back" title="返回" aria-label="返回">${ICONS.back}</button>
+      <div class="file-heading">
+        <b id="preview-name">${escapeHtml(entry.name)}</b>
+        <span id="preview-path">${escapeHtml(entry.path)}</span>
+      </div>
+      <button class="iconbtn" id="preview-close" title="关闭" aria-label="关闭">${ICONS.close}</button>
+    </header>
+    <div class="file-preview-scroll" id="preview-body"><div class="file-boot">正在读取文件…</div></div>
+    <footer class="file-actions">
+      <button class="btn" id="preview-copy">复制路径</button>
+      ${fileBrowser.sessionId.length > 0 ? '<button class="btn primary" id="preview-ref">引用到输入框</button>' : ''}
+    </footer>`;
+  document.body.appendChild(layer);
+  fileBrowser.preview = layer;
+  const close = () => closeFilePreview();
+  layer.querySelector('#preview-back').addEventListener('click', close);
+  layer.querySelector('#preview-close').addEventListener('click', close);
+  layer.querySelector('#preview-copy').addEventListener('click', () => void copyFilePath(entry.path));
+  layer.querySelector('#preview-ref')?.addEventListener('click', () => insertFileReference(entry.path, false));
+
+  let payload;
+  try {
+    payload = await api(fileApiUrl('text', entry.path));
+  } catch (error) {
+    if (fileBrowser.preview !== layer) return;
+    const body = layer.querySelector('#preview-body');
+    body.innerHTML = `<div class="file-note error">${escapeHtml(error.message ?? String(error))}</div>`;
+    return;
+  }
+  if (fileBrowser.preview !== layer) return;
+  const body = layer.querySelector('#preview-body');
+  const name = layer.querySelector('#preview-name');
+  const pathEl = layer.querySelector('#preview-path');
+  if (name !== null) name.textContent = basename(payload.path ?? entry.path);
+  if (pathEl !== null) pathEl.textContent = payload.path ?? entry.path;
+  body.replaceChildren();
+  const meta = el('div', 'file-preview-meta');
+  meta.textContent = `${formatBytes(payload.size)}${payload.truncated === true ? ' · 已截断，仅显示前 400 KB' : ''}`;
+  body.appendChild(meta);
+
+  if (payload.image === true) {
+    const image = new Image();
+    image.className = 'file-image';
+    image.alt = basename(entry.path);
+    image.loading = 'lazy';
+    image.src = fileImageUrl(entry.path);
+    image.addEventListener('error', () => {
+      const note = el('div', 'file-note error', '图片加载失败，可能超过 25 MB 或格式不受支持。');
+      body.appendChild(note);
+    });
+    body.appendChild(image);
+    return;
+  }
+  if (payload.binary === true) {
+    body.appendChild(el('div', 'file-note', '这是二进制文件，手机端不预览内容。可以复制路径或引用给会话处理。'));
+    return;
+  }
+  const pre = el('pre', 'file-text');
+  pre.textContent = payload.content ?? '';
+  body.appendChild(pre);
+}
+
+function closeFilePreview() {
+  fileBrowser.preview?.remove();
+  fileBrowser.preview = null;
+}
+
+/**
+ * 把文件作为 DSH 的 `@path` 引用插入当前会话输入框；有空格时用引号形式。
+ * @param {string} path
+ * @param {boolean} isDir
+ */
+function insertFileReference(path, isDir) {
+  const textarea = document.querySelector('#composer');
+  if (state.current === undefined || textarea === null) {
+    toast('请先进入一个会话再引用文件');
+    return;
+  }
+  let target = String(path ?? '');
+  if (target.length === 0) return;
+  if (isDir && !target.endsWith('/')) target += '/';
+  const mention = /\s/u.test(target) ? `@"${target.replaceAll('"', '\\"')}"` : `@${target}`;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? start;
+  const before = textarea.value.slice(0, start);
+  const prefix = before.length > 0 && !/\s$/u.test(before) ? ' ' : '';
+  textarea.setRangeText(`${prefix}${mention} `, start, end, 'end');
+  textarea.focus();
+  autosize(textarea);
+  updateSendState();
+  closeFilePreview();
+  closeFileBrowser();
+  toast('已引用到输入框', 'ok');
+}
+
 function closeChat() {
+  closeFilePreview();
+  closeFileBrowser();
   const current = state.current;
   state.current = undefined;
   state.pendingTexts = [];
@@ -1567,6 +2011,7 @@ function renderChatShell() {
         <b id="chat-title">${escapeHtml(current.meta.title)}</b>
         <span id="chat-cwd">${escapeHtml(current.meta.cwd || '')}</span>
       </div>
+      <button class="iconbtn" id="chat-files" title="工作区文件" aria-label="工作区文件" style="display:none">${ICONS.folder}</button>
       <button class="iconbtn theme-toggle" title="主题"></button>
       <span class="status-dot busy" id="chat-status" title="连接中"></span>
       <button class="iconbtn" id="chat-refresh" title="重新连接">${ICONS.refresh}</button>
@@ -1608,6 +2053,14 @@ function renderChatShell() {
     state.current.snapshotLoading = true;
     renderMessages();
     connectStream(state.current.id);
+  });
+  document.querySelector('#chat-files').addEventListener('click', () => {
+    const current = state.current;
+    if (current === undefined) return;
+    openFileBrowser({
+      sessionId: current.id,
+      title: current.meta.cwd ? basename(current.meta.cwd) : '工作区文件',
+    });
   });
   const textarea = document.querySelector('#composer');
   textarea.addEventListener('input', () => {
@@ -1681,6 +2134,8 @@ async function loadCapabilities(id) {
     current.features = status.features ?? {};
     const tools = document.querySelector('.composer-tools');
     if (tools !== null) tools.style.display = status.features?.controls === true ? 'flex' : 'none';
+    const filesButton = document.querySelector('#chat-files');
+    if (filesButton !== null) filesButton.style.display = status.features?.fileTree === true ? 'inline-flex' : 'none';
     if (status.features?.controls === true) updateModelChip();
     if (status.features?.notifications === true) ensureEvents();
     else disconnectEvents();
