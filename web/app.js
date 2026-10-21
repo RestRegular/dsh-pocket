@@ -1295,12 +1295,23 @@ async function createSessionInWorkspace(path) {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * 判断会话是否已置顶。除了行上的 pinned，还要看列表返回的置顶集合，
+ * 旧 Host 的顶层 items 可能没有 decorate 出 pinned。
+ * @param {any} row
+ * @returns {boolean}
+ */
+function isSessionPinned(row) {
+  if (row?.pinned === true) return true;
+  return typeof row?.id === 'string' && state.pinnedIds.includes(row.id);
+}
+
+/**
  * 打开某个会话的操作菜单。
  * @param {any} row
  */
 function openSessionMenu(row) {
   const archived = row.archived === true;
-  const pinned = row.pinned === true;
+  const pinned = isSessionPinned(row);
   const mask = el('div', 'modal-mask');
   const modal = el('div', 'modal sheet menu-sheet');
   const pinItem = archived
@@ -1359,7 +1370,7 @@ function actionErrorText(error) {
  * @returns {Promise<void>}
  */
 async function togglePinned(row) {
-  const pinned = row.pinned !== true;
+  const pinned = !isSessionPinned(row);
   try {
     await api(`/api/sessions/${encodeURIComponent(row.id)}/pin`, {
       method: 'POST',
