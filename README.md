@@ -13,6 +13,7 @@
 - **繁忙发送**：手机发送时读取桌面 `ui-conversation.busyEnter` 设置；空闲时正常发送，运行中按设置选择「排队发送」或「插话发送」。
 - **会话设置**：手机里切换模型与思考等级、选择权限预置、插入 `/技能` 引用；设置入口在输入框上方的滑杆按钮。
 - **图片消息**：从相册选择最多 4 张图片随消息发送；发送前会在手机上自动压到长边 2048px、单张约 ≤1.5 MB（HEIC/HEIF/AVIF 也会转成 JPEG），避免移动网络和大请求体导致 `Load failed`。Markdown 图片和表格可在聊天流里正常渲染。
+- **文件下载到手机**：轻量页的工作区文件树、文件预览和历史文件附件都能直接下载；桌面直通的文档预览头部、工作区文件列表每行也加了下载按钮。下载由 Pocket 校验会话 cwd 后以附件流式返回，走同一个访问令牌/Cookie，不需要把桌面 GUI 暴露成文件服务器。
 - **主题切换**：顶栏按钮在「跟随系统 / 浅色 / 深色」之间循环，选择保存在 `localStorage`，刷新后保留。
 - **提问与审批**：手机在线时接管 `user-questions/request` 与 `approval/request` waterfall；前台阻塞提问可直接作答，工具审批可选择「允许一次 / 拒绝」。手机切到任意会话时，WebSocket 会补发该会话仍在等待的提问/审批；手机作答后桌面端残留的弹窗会同步撤掉。continued 提问仍从投影显示。手机离线时自动回落到桌面 answerer。
 - **跨会话提醒**：别的会话被提问或审批阻塞时，手机页面顶部会弹出提示（显示会话标题与工具名/问题摘要），点一下直接切到对应会话；在会话页里只提示「其他会话」，当前会话仍用输入框上方的问答条处理。提示会随桌面/手机的回答自动消失，也可以手动忽略。
@@ -195,13 +196,16 @@ Pocket 面板本身也做了窄屏适配：Tab 分为「概览 / 设置」，设
 | GET | `/api/sessions/:id/questions` | `userQuestions` 投影的 active/settled 提问。 |
 | POST | `/api/sessions/:id/questions/:callId/answer` | `{ "answers": [{ "id", "selected", "custom" }] }`，回答 continued 提问。 |
 | POST | `/api/sessions/:id/interactions/:requestId/answer` | 回答前台阻塞提问（`answers`）或审批（`outcome: "allowed-once" \| "rejected"`）。 |
-| GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件。 |
+| GET | `/api/sessions/:id/attachments/:attachmentId` | 读取会话图片附件；加 `?download=1` 时以附件形式下载。 |
 | GET | `/api/sessions/:id/file?path=preview/x.png` | 读取会话工作区内的图片，供 Markdown 相对路径图片使用。 |
+| GET | `/api/sessions/:id/download?path=dist/app.zip` | 下载会话工作区里的文件（`Content-Disposition: attachment`，流式返回）；只允许 cwd 子树。 |
 | GET | `/api/sessions/:id/files?path=src` | 列出会话工作区里的一层目录（`entries`：名称、相对路径、目录/文件、大小、是否文本/图片）；只允许 cwd 子树。 |
 | GET | `/api/sessions/:id/text?path=src/app.js` | 文本预览（最多 400 KB，`truncated` 标记）；图片返回 `image: true`，二进制返回 `binary: true`。 |
 | GET | `/api/workspace/files?root=...&path=` | 首页工作区文件树；`root` 必须是当前列表里已登记的工作区。 |
 | GET | `/api/workspace/text?root=...&path=` | 首页工作区文件预览，规则同上。 |
+| GET | `/api/workspace/download?root=...&path=` | 首页工作区文件下载，规则同上。 |
 | GET | `/workspace/file?root=...&path=` | 首页文件树里的图片预览。 |
+| GET | `/__pocket/download?session=...&path=...` | 手机端通用下载入口：按会话 cwd 校验后流式返回文件；桌面直通的预览/文件列表按钮走这里。 |
 | GET | `/__pocket/surface` | 当前手机端界面模式：`{ surface: "mobile" \| "desktop", desktopAvailable }`。 |
 | POST | `/__pocket/surface` | `{ "surface": "mobile" \| "desktop" }`，切换手机端界面并持久化；切直通前会先验证能换到 GUI 凭据。 |
 | GET | `/__pocket/surface?to=mobile\|desktop` | 切换后 303 回首页，供兜底页/无脚本场景使用。 |

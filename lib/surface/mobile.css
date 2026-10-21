@@ -295,4 +295,84 @@
   .dsh-pocket-actions button:disabled {
     opacity: 0.6;
   }
+
+  /* ---------- download workspace files to the phone ---------- */
+  .dsh-pocket-preview-download {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-left: 2px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--dsw-alias-label-secondary, #5b6270);
+    cursor: pointer;
+  }
+
+  .dsh-pocket-preview-download:hover,
+  .dsh-pocket-preview-download:active {
+    background: var(--dsw-alias-bg-layer-2, #eef0f4);
+    color: var(--dsw-alias-label-primary, #171a20);
+  }
+
+  .dsh-pocket-preview-download svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .dsh-pocket-row-download {
+    flex: none;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    color: var(--dsw-alias-label-secondary, #5b6270);
+    cursor: pointer;
+  }
+
+  .dsh-pocket-row-download:hover,
+  .dsh-pocket-row-download:active {
+    background: var(--dsw-alias-bg-layer-2, #eef0f4);
+    color: var(--dsw-alias-button-primary-fill, #3b70e8);
+  }
+
+  .dsh-pocket-row-download svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .dsh-pocket-download-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    z-index: 300;
+    max-width: min(86vw, 420px);
+    padding: 9px 14px;
+    border-radius: 11px;
+    background: rgba(22, 26, 34, 0.96);
+    color: #eef2f8;
+    font-size: 12.5px;
+    line-height: 1.4;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+    opacity: 0;
+    transform: translate(-50%, 8px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  .dsh-pocket-download-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .dsh-pocket-download-toast.error {
+    background: rgba(72, 22, 28, 0.96);
+    color: #ffd7d7;
+  }
 }

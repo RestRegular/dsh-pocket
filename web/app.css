@@ -282,6 +282,8 @@ a { color: var(--accent); text-decoration: none; }
 .pill.run { color: var(--amber); border-color: rgba(245,184,75,.3); background: rgba(245,184,75,.1); }
 .pill.live { color: var(--green); border-color: rgba(70,211,154,.3); background: rgba(70,211,154,.1); }
 .pill.sub { color: #c3a6ff; border-color: rgba(195,166,255,.3); background: rgba(195,166,255,.1); }
+a.file-pill { text-decoration: none; }
+a.file-pill:active { background: var(--accent-soft); color: var(--accent); }
 
 .empty { padding: 48px 20px; text-align: center; color: var(--faint); }
 .empty .big { font-size: 34px; margin-bottom: 10px; opacity: .7; }
@@ -724,6 +726,16 @@ a { color: var(--accent); text-decoration: none; }
 .file-meta { font-size: 10.5px; color: var(--faint); }
 .file-chevron { flex: none; display: flex; color: var(--faint); }
 .file-chevron svg { width: 14px; height: 14px; }
+.file-dl {
+  flex: none; width: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 12px;
+  background: var(--card); color: var(--accent);
+  cursor: pointer;
+}
+.file-dl:hover { background: var(--accent-soft); }
+.file-dl:active { background: var(--accent-soft); }
+.file-dl svg { width: 18px; height: 18px; }
 .file-more {
   flex: none; width: 38px;
   display: flex; align-items: center; justify-content: center;

@@ -228,6 +228,7 @@ const ICONS = {
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 5.5A1.5 1.5 0 0 0 13.5 4H6a2 2 0 0 0-2 2v7.5A1.5 1.5 0 0 0 5.5 15"/></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="m7.5 10 4.5 4.5L16.5 10"/><path d="M5 19.5h14"/></svg>',
   sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>',
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"/></svg>',
   autoTheme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor" stroke="none"/></svg>',
@@ -1627,6 +1628,35 @@ function fileImageUrl(path) {
 }
 
 /**
+ * 文件下载地址；令牌放 query，HTML 里的 <a> 不能带请求头。
+ * @param {string} path
+ * @returns {string}
+ */
+function fileDownloadUrl(path) {
+  const params = new URLSearchParams({ path: path ?? '' });
+  if (fileBrowser.sessionId.length === 0) params.set('root', fileBrowser.root);
+  params.set('token', token);
+  return `${fileApiBase()}/download?${params.toString()}`;
+}
+
+/**
+ * 交给浏览器/下载管理器保存到手机。iOS Safari 认 Content-Disposition，
+ * 桌面浏览器认 download 属性；两个都带上。
+ * @param {string} path
+ */
+function downloadFile(path) {
+  const name = basename(path) || 'download';
+  const anchor = document.createElement('a');
+  anchor.href = fileDownloadUrl(path);
+  anchor.download = name;
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  toast(`开始下载 ${name}`, 'ok');
+}
+
+/**
  * 打开工作区文件树。
  * @param {{ sessionId?: string, root?: string, title?: string }} options
  */
@@ -1683,6 +1713,11 @@ function openFileBrowser(options = {}) {
     if (more !== null && more !== undefined) {
       const entry = fileBrowser.entries.find((item) => item.path === more.dataset.fileMore);
       if (entry !== undefined) openFileActions(entry);
+      return;
+    }
+    const download = event.target.closest?.('[data-file-download]');
+    if (download !== null && download !== undefined) {
+      downloadFile(download.dataset.fileDownload ?? '');
       return;
     }
     const open = event.target.closest?.('[data-file-open]');
@@ -1790,6 +1825,7 @@ function renderFileBrowser() {
           </span>
           <span class="file-chevron">${isDir ? ICONS.chevron : ''}</span>
         </button>
+        ${isDir ? '' : `<button class="file-dl" data-file-download="${escapeHtml(entry.path)}" title="下载到手机" aria-label="下载到手机">${ICONS.download}</button>`}
         <button class="file-more" data-file-more="${escapeHtml(entry.path)}" title="更多操作" aria-label="更多操作">${ICONS.more}</button>
       </div>`;
   }
@@ -1833,6 +1869,7 @@ function openFileActions(entry) {
       <button class="menu-item" data-file-action="${isDir ? 'open' : 'preview'}" role="menuitem">
         ${isDir ? ICONS.folder : ICONS.file}<span class="menu-label">${isDir ? '打开文件夹' : '预览文件'}</span>
       </button>
+      ${isDir ? '' : `<button class="menu-item" data-file-action="download" role="menuitem">${ICONS.download}<span class="menu-label">下载到手机</span></button>`}
       <button class="menu-item" data-file-action="copy" role="menuitem">${ICONS.copy}<span class="menu-label">复制路径</span></button>
       <button class="menu-item" data-file-action="copy-full" role="menuitem">${ICONS.copy}<span class="menu-label">复制完整路径</span></button>
       ${refItem}
@@ -1853,6 +1890,7 @@ function openFileActions(entry) {
       close();
       if (action === 'open') void loadFileDirectory(entry.path);
       else if (action === 'preview') openFilePreview(entry);
+      else if (action === 'download') downloadFile(entry.path);
       else if (action === 'copy') void copyFilePath(entry.path);
       else if (action === 'copy-full') void copyFilePath(fileFullPath(entry.path));
       else if (action === 'reference') insertFileReference(entry.path, isDir);
@@ -1899,8 +1937,9 @@ async function openFilePreview(entry) {
     </header>
     <div class="file-preview-scroll" id="preview-body"><div class="file-boot">正在读取文件…</div></div>
     <footer class="file-actions">
+      <button class="btn primary" id="preview-download">下载到手机</button>
       <button class="btn" id="preview-copy">复制路径</button>
-      ${fileBrowser.sessionId.length > 0 ? '<button class="btn primary" id="preview-ref">引用到输入框</button>' : ''}
+      ${fileBrowser.sessionId.length > 0 ? '<button class="btn" id="preview-ref">引用</button>' : ''}
     </footer>`;
   document.body.appendChild(layer);
   fileBrowser.preview = layer;
@@ -1908,6 +1947,7 @@ async function openFilePreview(entry) {
   layer.querySelector('#preview-back').addEventListener('click', close);
   layer.querySelector('#preview-close').addEventListener('click', close);
   layer.querySelector('#preview-copy').addEventListener('click', () => void copyFilePath(entry.path));
+  layer.querySelector('#preview-download').addEventListener('click', () => downloadFile(entry.path));
   layer.querySelector('#preview-ref')?.addEventListener('click', () => insertFileReference(entry.path, false));
 
   let payload;
@@ -3820,7 +3860,7 @@ function renderUserMessage(message) {
       } else {
         html += attachmentImage(message.sessionId ?? state.current?.id, block);
       }
-    } else if (block.type === 'file') html += `<div class="pill">📎 ${escapeHtml(block.attachment?.name ?? '文件')}</div>`;
+    } else if (block.type === 'file') html += attachmentFile(message.sessionId ?? state.current?.id, block);
   }
   bubble.innerHTML = html.length > 0 ? html : '<span class="pill">空消息</span>';
   wrap.appendChild(bubble);
@@ -3837,6 +3877,24 @@ function attachmentImage(sessionId, block) {
   if (typeof id !== 'string' || typeof sessionId !== 'string') return '<div class="pill">🖼 图片</div>';
   const src = `/api/sessions/${encodeURIComponent(sessionId)}/attachments/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`;
   return `<img src="${src}" alt="图片" style="max-width:100%;border-radius:10px;display:block;margin:4px 0">`;
+}
+
+/**
+ * 历史消息里的文件附件：手机上没有桌面端「打开方式」，直接给下载链接。
+ * @param {string | undefined} sessionId
+ * @param {any} block
+ * @returns {string}
+ */
+function attachmentFile(sessionId, block) {
+  const id = block.attachment?.attachmentId;
+  const name = block.attachment?.name ?? '文件';
+  if (typeof id !== 'string' || typeof sessionId !== 'string') {
+    return `<div class="pill">📎 ${escapeHtml(name)}</div>`;
+  }
+  const href = `/api/sessions/${encodeURIComponent(sessionId)}/attachments/${encodeURIComponent(id)}`
+    + `?download=1&token=${encodeURIComponent(token)}`;
+  return `<a class="pill file-pill" href="${escapeHtml(href)}" download="${escapeHtml(name)}">`
+    + `📎 ${escapeHtml(name)}</a>`;
 }
 
 function renderAssistantMessage(message) {
