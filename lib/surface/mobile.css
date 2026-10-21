@@ -18,6 +18,17 @@
       0 24px 70px rgba(0, 0, 0, 0.32);
   }
 
+  /* Taking the sidebar out of flow makes the remaining grid children slide one
+     column left, which squashes the conversation into the 56px rail column.
+     Pin the real columns back so the chat stays behind the drawer. */
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_centerCol"] {
+    grid-column: 2 !important;
+  }
+
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_rightbarCol"] {
+    grid-column: 3 !important;
+  }
+
   [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_sidebarCol"] > * {
     width: 100% !important;
     max-width: 100% !important;
