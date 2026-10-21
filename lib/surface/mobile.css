@@ -1,0 +1,127 @@
+/* Phone layout injected by dsh-pocket for the desktop surface (≤768px). */
+
+@media (max-width: 768px) {
+  /* ---------- app shell: the left sidebar becomes an overlay drawer ---------- */
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]) {
+    grid-template-columns: 56px minmax(0px, 1fr) 0px !important;
+  }
+
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_sidebarCol"] {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    width: min(280px, 86vw) !important;
+    z-index: 120;
+    background: var(--dsw-alias-bg-base);
+    overscroll-behavior: contain;
+    box-shadow:
+      0 0 0 1px var(--dsw-alias-border-l2),
+      0 24px 70px rgba(0, 0, 0, 0.32);
+  }
+
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_sidebarCol"] > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .dsh-pocket-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(8, 12, 20, 0.4);
+    -webkit-backdrop-filter: blur(1px);
+    backdrop-filter: blur(1px);
+  }
+
+  /* ---------- dialogs other than settings: keep them inside the viewport ---------- */
+  [role="dialog"]:not(:has(> nav)) {
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+  }
+
+  /* ---------- settings dialog: full screen + horizontal section tabs ---------- */
+  [role="dialog"]:has(> nav) {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    z-index: 300;
+    flex-direction: column;
+  }
+
+  [role="dialog"]:has(> nav) > nav {
+    width: 100% !important;
+    min-height: 0;
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--dsw-alias-border-l2);
+    padding: 6px 10px 0 12px !important;
+  }
+
+  [role="dialog"]:has(> nav) > nav > :first-child {
+    display: block !important;
+    flex: none;
+    white-space: nowrap;
+    font-weight: 650;
+  }
+
+  [role="dialog"]:has(> nav) > nav [class*="_navList"] {
+    flex: 1 1 auto;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0 8px !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  [role="dialog"]:has(> nav) > nav [class*="_navList"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  [role="dialog"]:has(> nav) > nav [class*="_navCell"] {
+    width: auto !important;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    height: 36px !important;
+    padding: 0 12px !important;
+    border-radius: 10px;
+  }
+
+  [role="dialog"]:has(> nav) > [class*="_content"] {
+    flex: 1 1 auto;
+    width: 100% !important;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  [role="dialog"]:has(> nav) > [class*="_content"] [class*="_options"] {
+    padding: 12px !important;
+  }
+
+  /* the config-file action targets the desktop shell; keep only the close control */
+  [role="dialog"]:has(> nav) [class*="_header"] {
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 4px 8px !important;
+    justify-content: flex-end;
+  }
+
+  [role="dialog"]:has(> nav) > [class*="_content"] > [class*="_header"] [class*="_actions"] {
+    display: none !important;
+  }
+
+  /* ---------- plugin overlays that share the composer's corner ---------- */
+  .dshwv-root {
+    transform: translateY(-72px);
+  }
+}

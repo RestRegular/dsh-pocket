@@ -73,6 +73,7 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | `keepAwake` | `false` | 启动后自动保持电脑不休眠；也可以随时在桌面面板或手机顶栏开关，面板上的选择优先。 |
 | `keepAwakeDisplay` | `true` | 常亮时是否同时阻止屏幕关闭；设 `false` 只阻止系统睡眠（Windows/macOS）。 |
 | `surface` | `mobile` | 手机端默认界面。`mobile` 是 Pocket 自带轻量页；`desktop` 直接把桌面 Web GUI 整页反代给手机（插件 UI 全部复用）。面板里的选择优先并持久化。 |
+| `mobileLayout` | `true` | 桌面直通时是否注入窄屏适配样式与抽屉脚本（侧栏变抽屉、设置页变顶部标签、对话框限宽）。可在面板「设置 → 窄屏适配」里随时关闭。 |
 
 ### 用自有服务器转发
 
@@ -149,15 +150,16 @@ sshExposePort: 80
 
 - 手机上看到的就是桌面界面本身：插件面板、设置、终端、文件预览、插件市场全部来自同一份代码，新增插件不需要在手机端重写；
 - 认证是两层的：手机仍然先过 Pocket 令牌/Cookie，Pocket 再用进程启动令牌给自己换一张绑定回环 authority 的 GUI Cookie，反代时固定 `Host`/`Origin`，所以隧道地址怎么变都不影响；
-- 切换入口：桌面 **Pocket** 面板的「手机端界面」，或 `GET /__pocket/surface?to=desktop|mobile`；切换后页面会自动刷新。
+- 窄屏适配（默认开启，可在面板「设置 → 窄屏适配」关闭）：Pocket 在直通页面的 `<head>` 里注入一份只在 ≤768px 生效的样式和一个小脚本 —— 左侧边栏改成带遮罩的抽屉（选中会话自动收起）、设置页改成全屏 + 顶部横向标签、设置页的「打开配置文件」隐藏、其它对话框限制在视口内，并把鲸鱼插件的浮窗上移，避免压住输入框的发送按钮；
+- 切换入口：桌面 **Pocket** 面板的「设置 → 手机端界面」，或 `GET /__pocket/surface?to=desktop|mobile`。
 
 代价：
 
 - 首屏是完整的桌面 bundle（含所有插件），比轻量页大一个量级，弱网首次打开更慢；
-- 桌面布局没有针对窄屏做断点。实测 390×844 下会话页与输入框可用，但**左侧边栏展开时会把主内容挤到只剩一条**，右侧面板是全屏接管（正常）；终端、拖拽、右键菜单等桌面交互在触摸屏上体验一般；
+- 终端、拖拽、右键菜单等桌面交互在触摸屏上体验一般；插件自己写的 fixed 浮层可能仍会挡住内容（例如鲸鱼浮窗被上移了 72px，但仍会覆盖消息区一角）；
 - Electron 专属能力（例如"在文件管理器中打开"）在浏览器里会降级。
 
-这个模式默认关闭，`surface: mobile` 时 Pocket 的行为与之前完全一致。后续如果给前端补一份窄屏样式，所有插件会一起受益。
+Pocket 面板本身也做了窄屏适配：Tab 分为「概览 / 设置」，设置页只显示当前界面模式相关的设置 —— 轻量界面显示「显示与截断」，桌面直通则显示「窄屏适配」，另一类设置不会混在一起。这个模式默认关闭，`surface: mobile` 时 Pocket 的行为与之前完全一致。
 
 ## HTTP 接口
 
@@ -200,7 +202,7 @@ sshExposePort: 80
 | POST | `/__pocket/surface` | `{ "surface": "mobile" \| "desktop" }`，切换手机端界面并持久化；切直通前会先验证能换到 GUI 凭据。 |
 | GET | `/__pocket/surface?to=mobile\|desktop` | 切换后 303 回首页，供兜底页/无脚本场景使用。 |
 
-桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`set-surface`、`restart`。
+桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`set-surface`、`set-mobile-layout`、`restart`。
 
 模型工具 `pocket_share` 会把当前手机入口地址交给模型，方便用户直接要链接。
 

@@ -138,6 +138,19 @@ if (!alreadyRegistered()) {
         surfaceDesktopDesc: '桌面端同一份界面 · 插件全在',
         surfaceNote: '切换后会自动刷新本页；直通模式下手机加载的就是桌面 Web GUI。',
         surfaceUnavailable: '桌面 Web 界面没有在运行，暂时只能使用轻量界面。',
+        tabOverview: '概览',
+        tabSettings: '设置',
+        settingsScope: '这些设置只作用于手机上打开的 Pocket 页面，桌面 DSH 窗口不受影响。',
+        displayOnlyMobile: '当前是桌面直通：显示与截断只作用于轻量界面，所以这里不显示。切回「轻量界面」后可以继续调整。',
+        narrowCard: '窄屏适配',
+        narrowHint: '桌面界面在手机上的布局优化。',
+        narrowLabel: '侧栏改成抽屉',
+        narrowDesc: '展开侧栏时覆盖内容并加遮罩，设置页的左侧导航改成顶部标签。',
+        narrowOn: '已开启',
+        narrowOff: '已关闭',
+        narrowNote: '修改后刷新手机上的页面生效；关闭后恢复桌面原始布局。',
+        settingsFootnote: '切换界面模式后，手机上的页面需要刷新一次。',
+        surfaceSwitched: '已切换界面模式，手机上的页面刷新后生效。',
       };
 
       const EN = {
@@ -245,13 +258,26 @@ if (!alreadyRegistered()) {
         surfaceDesktopDesc: 'The same desktop UI · every plugin included',
         surfaceNote: 'This page refreshes after switching; passthrough serves the desktop Web GUI itself.',
         surfaceUnavailable: 'The desktop Web GUI is not running, so only the lightweight page is available.',
+        tabOverview: 'Overview',
+        tabSettings: 'Settings',
+        settingsScope: 'These settings only affect the Pocket page on your phone, not the desktop DSH window.',
+        displayOnlyMobile: 'Desktop passthrough is active. Display and truncation only apply to the lightweight page, so they are hidden here.',
+        narrowCard: 'Phone layout',
+        narrowHint: 'Layout tuning for the desktop UI on a phone.',
+        narrowLabel: 'Sidebar as a drawer',
+        narrowDesc: 'Overlay the content with a dimmed backdrop and turn the settings sidebar into top tabs.',
+        narrowOn: 'On',
+        narrowOff: 'Off',
+        narrowNote: 'Refresh the page on your phone to apply; turn off to restore the original desktop layout.',
+        settingsFootnote: 'Refresh the page on your phone after switching surfaces.',
+        surfaceSwitched: 'Surface changed; refresh the page on your phone to apply.',
       };
 
       const LANG = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? ZH : EN;
 
       const CSS = `
 .dsh-pk{display:flex;flex-direction:column;height:100%;min-height:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}
-.dsh-pk-head{flex:none;display:flex;align-items:flex-start;gap:12px;padding:16px 22px 13px;border-bottom:1px solid var(--dsw-alias-border-l2)}
+.dsh-pk-head{flex:none;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:16px 22px 13px;border-bottom:1px solid var(--dsw-alias-border-l2)}
 .dsh-pk-head-main{min-width:0;flex:1}
 .dsh-pk-title{font-size:16px;font-weight:650;margin:0}
 .dsh-pk-sub{color:var(--dsw-alias-label-tertiary);font-size:12px;margin-top:3px}
@@ -390,6 +416,26 @@ if (!alreadyRegistered()) {
 .dsh-pk-display-limit{display:flex;align-items:center;gap:8px;margin-top:6px}
 .dsh-pk-display-limit .dsh-pk-input{flex:1;min-width:0}
 .dsh-pk-display-limit span{flex:none;font-size:11px;color:var(--dsw-alias-label-caption)}
+.dsh-pk,.dsh-pk *{box-sizing:border-box}
+.dsh-pk-head-row{display:flex;align-items:flex-start;gap:12px;width:100%}
+.dsh-pk-tabs{display:flex;gap:3px;margin-top:11px;padding:3px;border-radius:10px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);align-self:flex-start}
+.dsh-pk-tab{appearance:none;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;font-weight:550;padding:6px 16px;border-radius:8px;cursor:pointer;transition:background .15s ease,color .15s ease}
+.dsh-pk-tab:hover:not(.active){color:var(--dsw-alias-label-primary)}
+.dsh-pk-tab.active{background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-primary);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.dsh-pk-settings-note{padding:10px 12px;border:1px dashed var(--dsw-alias-border-l2);border-radius:9px;color:var(--dsw-alias-label-caption);font-size:11.5px;line-height:1.6}
+
+@media (max-width: 768px) {
+  .dsh-pk-head{padding:14px 16px 10px}
+  .dsh-pk-body{padding:14px 16px 28px;max-width:100%}
+  .dsh-pk-head-row{gap:10px}
+  .dsh-pk-tabs{width:100%;margin-top:9px}
+  .dsh-pk-tab{flex:1;padding:7px 0}
+  .dsh-pk-grid{grid-template-columns:minmax(0,1fr)}
+  .dsh-pk-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dsh-pk-sub{font-size:11.5px}
+  .dsh-pk-links{min-width:0}
+  .dsh-pk-qr-card img,.dsh-pk-qr-empty{width:132px;height:132px}
+}
 
 [data-platform='darwin'] .dsh-pk-head{padding-top:calc(30px + var(--dsh-frame-top-clearance,0px))}
 `;
@@ -641,6 +687,7 @@ if (!alreadyRegistered()) {
         const [error, setError] = useState('');
         const [busy, setBusy] = useState('');
         const [toast, setToast] = useState('');
+        const [view, setView] = useState('overview');
         const [provider, setProvider] = useState('cloudflared');
         const [sshHost, setSshHost] = useState('');
         const [displayDraft, setDisplayDraft] = useState(undefined);
@@ -700,7 +747,10 @@ if (!alreadyRegistered()) {
 
         const switchSurface = (mode) => {
           void action('set-surface', { surface: mode }).then((next) => {
-            if (next?.surface === mode) window.location.reload();
+            if (next?.surface !== mode) return;
+            // 手机上（直通页面里的面板）直接刷新最直观；桌面窗口只提示，别打断当前工作。
+            if (window.matchMedia('(max-width: 768px)').matches) window.location.reload();
+            else setToast(LANG.surfaceSwitched);
           });
         };
 
@@ -798,259 +848,319 @@ if (!alreadyRegistered()) {
           void action('keep-awake', { enabled: awake.active !== true });
         };
 
+        const surfaceValue = status.surface === 'desktop' ? 'desktop' : 'mobile';
+        const mobileLayoutOn = status.mobileLayout !== false;
+        const surfaceOptions = status.desktopAvailable === false
+          ? [{ value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc }]
+          : [
+            { value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc },
+            { value: 'desktop', label: LANG.surfaceDesktop, description: LANG.surfaceDesktopDesc },
+          ];
+
+        const statsRow = h('div', { className: 'dsh-pk-stats' },
+          stat(LANG.serverCard, status.server?.listening ? LANG.online : LANG.offline, `:${String(status.server?.port ?? '-')} · ${status.server?.host ?? '-'}`),
+          stat(LANG.publicEntry, providerName, isOnline ? publicHost : tunnelLabel(tunnel)),
+          stat(LANG.lanIp, selectedLan?.name ?? LANG.lanAuto, selectedLan?.address ?? `${lanOptions.length} ${LANG.lan}`),
+        );
+
+        const serverCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'server', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.serverCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.serverCardHint),
+            ),
+            h(StatusPill, { tone: status.server?.listening ? 'on' : '', label: status.server?.listening ? LANG.listening : LANG.stopped }),
+          ),
+          h('dl', { className: 'dsh-pk-kv' },
+            h('dt', null, LANG.port), h('dd', null, String(status.server?.port ?? '-')),
+            h('dt', null, LANG.bind), h('dd', null, status.server?.host ?? '-'),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h('span', { className: 'dsh-pk-field-label' }, LANG.lanIp),
+            h(Picker, {
+              value: lanSelected,
+              options: lanPickerOptions,
+              disabled: busy !== '',
+              onChange: (value) => void action('set-lan', { address: value }),
+            }),
+            h('span', { className: 'dsh-pk-hint' }, LANG.lanHint),
+          ),
+          h('div', { className: 'dsh-pk-card-footer' },
+            h('a', {
+              className: 'dsh-pk-textlink',
+              href: lan[0] ?? urls.local,
+              target: '_blank',
+              rel: 'noopener noreferrer',
+            }, LANG.openPhone),
+          ),
+        );
+
+        const tunnelCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'globe', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.tunnelCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.tunnelCardHint),
+            ),
+            h(StatusPill, { tone, label: tunnelLabel(tunnel) }),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h('span', { className: 'dsh-pk-field-label' }, LANG.publicEntry),
+            h(Picker, {
+              value: provider,
+              options: providerOptions,
+              disabled: busy !== '',
+              onChange: setProvider,
+            }),
+            h('span', { className: 'dsh-pk-hint' }, LANG.publicEntryHint),
+          ),
+          provider === 'ssh'
+            ? h('div', { className: 'dsh-pk-field' },
+              h('span', { className: 'dsh-pk-field-label' }, LANG.serverAddress),
+              h('div', { className: 'dsh-pk-input-shell' },
+                h(LineIcon, { name: 'server', size: 15 }),
+                h('input', {
+                  className: 'dsh-pk-input',
+                  value: sshHost,
+                  placeholder: LANG.serverAddress,
+                  disabled: busy !== '',
+                  onChange: (event) => setSshHost(event.target.value),
+                }),
+              ),
+              h('span', { className: 'dsh-pk-hint' }, LANG.serverAddressHint),
+            )
+            : null,
+          h('div', { className: 'dsh-pk-actions' },
+            h('button', {
+              className: 'dsh-pk-btn primary block',
+              disabled: busy !== '' || (provider === 'ssh' && sshHost.trim().length === 0),
+              onClick: switchProvider,
+            }, busy === 'switch-tunnel' ? LANG.switching : LANG.switchTunnel),
+          ),
+          tunnel.error !== undefined ? h('div', { className: 'dsh-pk-err' }, tunnel.error) : null,
+          h('div', { className: 'dsh-pk-actions' },
+            isOnline || isStarting
+              ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-stop') }, LANG.stop)
+              : h('button', { className: 'dsh-pk-btn primary', disabled: busy !== '', onClick: () => void action('tunnel-start') }, LANG.start),
+            isOnline || tunnel.state === 'error'
+              ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-restart') }, LANG.restart)
+              : null,
+          ),
+          provider === 'ssh' ? h('div', { className: 'dsh-pk-note' }, LANG.sshHint) : null,
+          Array.isArray(tunnel.log) && tunnel.log.length > 0
+            ? h('details', { className: 'dsh-pk-details' },
+              h('summary', null, LANG.log),
+              h('pre', { className: 'dsh-pk-log' }, tunnel.log.slice(-8).join('\n')),
+            )
+            : null,
+        );
+
+        const awakeCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'bolt', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.awakeCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.awakeHint),
+            ),
+            h(StatusPill, { tone: awake.active ? 'on' : '', label: awake.active ? LANG.awakeOn : LANG.awakeOff }),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h('span', { className: 'dsh-pk-hint' }, awake.supported === false
+              ? LANG.awakeUnsupported
+              : awake.active ? LANG.awakeActiveHint : LANG.awakeIdleHint),
+          ),
+          awake.error !== undefined && awake.error !== null
+            ? h('div', { className: 'dsh-pk-err' }, String(awake.error))
+            : null,
+          h('div', { className: 'dsh-pk-actions' },
+            h('button', {
+              className: awake.active ? 'dsh-pk-btn' : 'dsh-pk-btn primary',
+              disabled: busy !== '' || awake.supported === false,
+              onClick: toggleAwake,
+            }, busy === 'keep-awake' ? LANG.switching : (awake.active ? LANG.awakeDisable : LANG.awakeEnable)),
+          ),
+          h('div', { className: 'dsh-pk-note' }, LANG.awakeNote),
+        );
+
+        const connectCard = h('section', { className: 'dsh-pk-card dsh-pk-connect-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'phone', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.connectCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.connectHint),
+            ),
+            isOnline ? h(StatusPill, { tone: 'on', label: LANG.online }) : null,
+          ),
+          h('div', { className: 'dsh-pk-connect' },
+            h('div', { className: 'dsh-pk-qr-group' },
+              h(QrCard, { label: LANG.public, qr: publicQr, emptyLabel: LANG.qrPublicEmpty }),
+              h(QrCard, { label: LANG.lan, qr: lanQr, emptyLabel: LANG.qrLanEmpty }),
+            ),
+            h('div', { className: 'dsh-pk-links' },
+              h(UrlRow, { label: LANG.local, url: urls.local }),
+              isOnline ? h(UrlRow, { label: LANG.public, url: urls.publicUrl }) : null,
+              lan.length === 0
+                ? h('div', { className: 'dsh-pk-empty' }, LANG.noLan)
+                : lan.map((url, index) => h(UrlRow, { key: `${url}-${index}`, label: LANG.lan, url })),
+              h('div', { className: 'dsh-pk-note' }, LANG.warning),
+            ),
+          ),
+        );
+
+        const securityCard = h('section', { className: 'dsh-pk-security' },
+          h('div', { className: 'dsh-pk-security-main' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'shield', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.securityCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.tokenHint),
+            ),
+            h('code', { className: 'dsh-pk-token' }, `${String(status.token ?? '').slice(0, 6)}…${String(status.token ?? '').slice(-4)}`),
+          ),
+          h('button', { className: 'dsh-pk-btn danger', disabled: busy !== '', onClick: rotate }, LANG.rotate),
+        );
+
+        const surfaceCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'display', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.surfaceCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.surfaceHint),
+            ),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h(Picker, {
+              value: surfaceValue,
+              options: surfaceOptions,
+              disabled: busy !== '',
+              onChange: switchSurface,
+            }),
+            h('span', { className: 'dsh-pk-hint' }, status.desktopAvailable === false
+              ? LANG.surfaceUnavailable
+              : LANG.surfaceNote),
+          ),
+        );
+
+        const displayCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'display', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.displayCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.displayHint),
+            ),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h(DisplayRow, {
+              label: LANG.displayTools,
+              description: LANG.displayToolsDesc,
+              checked: draftDisplay.truncateTools !== false,
+              disabled: busy !== '',
+              onChange: (value) => patchDisplay('truncateTools', value),
+            }),
+            h(DisplayRow, {
+              label: LANG.displayAssistant,
+              description: LANG.displayAssistantDesc,
+              checked: draftDisplay.truncateAssistant !== false,
+              disabled: busy !== '',
+              onChange: (value) => patchDisplay('truncateAssistant', value),
+            }),
+            h(DisplayRow, {
+              label: LANG.displayReasoning,
+              description: LANG.displayReasoningDesc,
+              checked: draftDisplay.truncateReasoning !== false,
+              disabled: busy !== '',
+              onChange: (value) => patchDisplay('truncateReasoning', value),
+            }),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h('span', { className: 'dsh-pk-field-label' }, LANG.displayLimit),
+            h('div', { className: 'dsh-pk-display-limit' },
+              h('input', {
+                className: 'dsh-pk-input',
+                type: 'number',
+                min: 500,
+                max: 50000,
+                step: 500,
+                value: String(draftDisplay.limit ?? ''),
+                disabled: busy !== '',
+                onChange: (event) => patchDisplay('limit', event.target.value),
+              }),
+              h('span', null, LANG.displayLimitUnit),
+            ),
+            h('span', { className: 'dsh-pk-hint' }, LANG.displayNote),
+          ),
+          h('div', { className: 'dsh-pk-actions' },
+            h('button', {
+              className: 'dsh-pk-btn primary block',
+              disabled: busy !== '',
+              onClick: saveDisplay,
+            }, busy === 'set-display' ? LANG.switching : LANG.displaySave),
+          ),
+        );
+
+        const narrowCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'phone', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.narrowCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.narrowHint),
+            ),
+            h(StatusPill, { tone: mobileLayoutOn ? 'on' : '', label: mobileLayoutOn ? LANG.narrowOn : LANG.narrowOff }),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h(DisplayRow, {
+              label: LANG.narrowLabel,
+              description: LANG.narrowDesc,
+              checked: mobileLayoutOn,
+              disabled: busy !== '',
+              onChange: (value) => void action('set-mobile-layout', { enabled: value }),
+            }),
+            h('span', { className: 'dsh-pk-hint' }, LANG.narrowNote),
+          ),
+        );
+
         return h('div', { className: 'dsh-pk' },
           h('div', { className: 'dsh-pk-head' },
-            h('div', { className: 'dsh-pk-head-main' },
-              h('div', { className: 'dsh-pk-eyebrow' }, 'POCKET · REMOTE'),
-              h('h2', { className: 'dsh-pk-title' }, LANG.title),
-              h('div', { className: 'dsh-pk-sub' }, LANG.subtitle),
+            h('div', { className: 'dsh-pk-head-row' },
+              h('div', { className: 'dsh-pk-head-main' },
+                h('div', { className: 'dsh-pk-eyebrow' }, 'POCKET · REMOTE'),
+                h('h2', { className: 'dsh-pk-title' }, LANG.title),
+                h('div', { className: 'dsh-pk-sub' }, LANG.subtitle),
+              ),
+              h('div', { className: 'dsh-pk-head-actions' },
+                h(StatusPill, { tone, label: tunnelLabel(tunnel) }),
+                h('button', { className: 'dsh-pk-btn', onClick: () => void refresh() }, LANG.refresh),
+              ),
             ),
-            h('div', { className: 'dsh-pk-head-actions' },
-              h(StatusPill, { tone, label: tunnelLabel(tunnel) }),
-              h('button', { className: 'dsh-pk-btn', onClick: () => void refresh() }, LANG.refresh),
+            h('div', { className: 'dsh-pk-tabs' },
+              h('button', {
+                type: 'button',
+                className: `dsh-pk-tab${view === 'overview' ? ' active' : ''}`,
+                onClick: () => setView('overview'),
+              }, LANG.tabOverview),
+              h('button', {
+                type: 'button',
+                className: `dsh-pk-tab${view === 'settings' ? ' active' : ''}`,
+                onClick: () => setView('settings'),
+              }, LANG.tabSettings),
             ),
           ),
           h('div', { className: 'dsh-pk-body' },
-            h('div', { className: 'dsh-pk-stats' },
-              stat(LANG.serverCard, status.server?.listening ? LANG.online : LANG.offline, `:${String(status.server?.port ?? '-')} · ${status.server?.host ?? '-'}`),
-              stat(LANG.publicEntry, providerName, isOnline ? publicHost : tunnelLabel(tunnel)),
-              stat(LANG.lanIp, selectedLan?.name ?? LANG.lanAuto, selectedLan?.address ?? `${lanOptions.length} ${LANG.lan}`),
-            ),
-            h('div', { className: 'dsh-pk-grid' },
-              h('section', { className: 'dsh-pk-card' },
-                h('div', { className: 'dsh-pk-card-top' },
-                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'server', size: 16 })),
-                  h('div', { className: 'dsh-pk-card-heading' },
-                    h('span', { className: 'dsh-pk-card-title' }, LANG.serverCard),
-                    h('span', { className: 'dsh-pk-card-sub' }, LANG.serverCardHint),
-                  ),
-                  h(StatusPill, { tone: status.server?.listening ? 'on' : '', label: status.server?.listening ? LANG.listening : LANG.stopped }),
-                ),
-                h('dl', { className: 'dsh-pk-kv' },
-                  h('dt', null, LANG.port), h('dd', null, String(status.server?.port ?? '-')),
-                  h('dt', null, LANG.bind), h('dd', null, status.server?.host ?? '-'),
-                ),
-                h('div', { className: 'dsh-pk-field' },
-                  h('span', { className: 'dsh-pk-field-label' }, LANG.lanIp),
-                  h(Picker, {
-                    value: lanSelected,
-                    options: lanPickerOptions,
-                    disabled: busy !== '',
-                    onChange: (value) => void action('set-lan', { address: value }),
-                  }),
-                  h('span', { className: 'dsh-pk-hint' }, LANG.lanHint),
-                ),
-                h('div', { className: 'dsh-pk-card-footer' },
-                  h('a', {
-                    className: 'dsh-pk-textlink',
-                    href: lan[0] ?? urls.local,
-                    target: '_blank',
-                    rel: 'noopener noreferrer',
-                  }, LANG.openPhone),
-                ),
+            view === 'overview'
+              ? h(React.Fragment, null,
+                statsRow,
+                h('div', { className: 'dsh-pk-grid' }, serverCard, tunnelCard, awakeCard),
+                connectCard,
+                securityCard,
+              )
+              : h(React.Fragment, null,
+                surfaceCard,
+                surfaceValue === 'mobile' ? displayCard : narrowCard,
+                h('div', { className: 'dsh-pk-settings-note' },
+                  surfaceValue === 'mobile'
+                    ? `${LANG.settingsScope} ${LANG.settingsFootnote}`
+                    : LANG.displayOnlyMobile),
               ),
-              h('section', { className: 'dsh-pk-card' },
-                h('div', { className: 'dsh-pk-card-top' },
-                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'globe', size: 16 })),
-                  h('div', { className: 'dsh-pk-card-heading' },
-                    h('span', { className: 'dsh-pk-card-title' }, LANG.tunnelCard),
-                    h('span', { className: 'dsh-pk-card-sub' }, LANG.tunnelCardHint),
-                  ),
-                  h(StatusPill, { tone, label: tunnelLabel(tunnel) }),
-                ),
-                h('div', { className: 'dsh-pk-field' },
-                  h('span', { className: 'dsh-pk-field-label' }, LANG.publicEntry),
-                  h(Picker, {
-                    value: provider,
-                    options: providerOptions,
-                    disabled: busy !== '',
-                    onChange: setProvider,
-                  }),
-                  h('span', { className: 'dsh-pk-hint' }, LANG.publicEntryHint),
-                ),
-                provider === 'ssh'
-                  ? h('div', { className: 'dsh-pk-field' },
-                    h('span', { className: 'dsh-pk-field-label' }, LANG.serverAddress),
-                    h('div', { className: 'dsh-pk-input-shell' },
-                      h(LineIcon, { name: 'server', size: 15 }),
-                      h('input', {
-                        className: 'dsh-pk-input',
-                        value: sshHost,
-                        placeholder: LANG.serverAddress,
-                        disabled: busy !== '',
-                        onChange: (event) => setSshHost(event.target.value),
-                      }),
-                    ),
-                    h('span', { className: 'dsh-pk-hint' }, LANG.serverAddressHint),
-                  )
-                  : null,
-                h('div', { className: 'dsh-pk-actions' },
-                  h('button', {
-                    className: 'dsh-pk-btn primary block',
-                    disabled: busy !== '' || (provider === 'ssh' && sshHost.trim().length === 0),
-                    onClick: switchProvider,
-                  }, busy === 'switch-tunnel' ? LANG.switching : LANG.switchTunnel),
-                ),
-                tunnel.error !== undefined ? h('div', { className: 'dsh-pk-err' }, tunnel.error) : null,
-                h('div', { className: 'dsh-pk-actions' },
-                  isOnline || isStarting
-                    ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-stop') }, LANG.stop)
-                    : h('button', { className: 'dsh-pk-btn primary', disabled: busy !== '', onClick: () => void action('tunnel-start') }, LANG.start),
-                  isOnline || tunnel.state === 'error'
-                    ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-restart') }, LANG.restart)
-                    : null,
-                ),
-                provider === 'ssh' ? h('div', { className: 'dsh-pk-note' }, LANG.sshHint) : null,
-                Array.isArray(tunnel.log) && tunnel.log.length > 0
-                  ? h('details', { className: 'dsh-pk-details' },
-                    h('summary', null, LANG.log),
-                    h('pre', { className: 'dsh-pk-log' }, tunnel.log.slice(-8).join('\n')),
-                  )
-                  : null,
-              ),
-              h('section', { className: 'dsh-pk-card' },
-                h('div', { className: 'dsh-pk-card-top' },
-                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'bolt', size: 16 })),
-                  h('div', { className: 'dsh-pk-card-heading' },
-                    h('span', { className: 'dsh-pk-card-title' }, LANG.awakeCard),
-                    h('span', { className: 'dsh-pk-card-sub' }, LANG.awakeHint),
-                  ),
-                  h(StatusPill, { tone: awake.active ? 'on' : '', label: awake.active ? LANG.awakeOn : LANG.awakeOff }),
-                ),
-                h('div', { className: 'dsh-pk-field' },
-                  h('span', { className: 'dsh-pk-hint' }, awake.supported === false
-                    ? LANG.awakeUnsupported
-                    : awake.active ? LANG.awakeActiveHint : LANG.awakeIdleHint),
-                ),
-                awake.error !== undefined && awake.error !== null
-                  ? h('div', { className: 'dsh-pk-err' }, String(awake.error))
-                  : null,
-                h('div', { className: 'dsh-pk-actions' },
-                  h('button', {
-                    className: awake.active ? 'dsh-pk-btn' : 'dsh-pk-btn primary',
-                    disabled: busy !== '' || awake.supported === false,
-                    onClick: toggleAwake,
-                  }, busy === 'keep-awake' ? LANG.switching : (awake.active ? LANG.awakeDisable : LANG.awakeEnable)),
-                ),
-                h('div', { className: 'dsh-pk-note' }, LANG.awakeNote),
-              ),
-              h('section', { className: 'dsh-pk-card' },
-                h('div', { className: 'dsh-pk-card-top' },
-                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'display', size: 16 })),
-                  h('div', { className: 'dsh-pk-card-heading' },
-                    h('span', { className: 'dsh-pk-card-title' }, LANG.displayCard),
-                    h('span', { className: 'dsh-pk-card-sub' }, LANG.displayHint),
-                  ),
-                ),
-                h('div', { className: 'dsh-pk-field' },
-                  h(DisplayRow, {
-                    label: LANG.displayTools,
-                    description: LANG.displayToolsDesc,
-                    checked: draftDisplay.truncateTools !== false,
-                    disabled: busy !== '',
-                    onChange: (value) => patchDisplay('truncateTools', value),
-                  }),
-                  h(DisplayRow, {
-                    label: LANG.displayAssistant,
-                    description: LANG.displayAssistantDesc,
-                    checked: draftDisplay.truncateAssistant !== false,
-                    disabled: busy !== '',
-                    onChange: (value) => patchDisplay('truncateAssistant', value),
-                  }),
-                  h(DisplayRow, {
-                    label: LANG.displayReasoning,
-                    description: LANG.displayReasoningDesc,
-                    checked: draftDisplay.truncateReasoning !== false,
-                    disabled: busy !== '',
-                    onChange: (value) => patchDisplay('truncateReasoning', value),
-                  }),
-                ),
-                h('div', { className: 'dsh-pk-field' },
-                  h('span', { className: 'dsh-pk-field-label' }, LANG.displayLimit),
-                  h('div', { className: 'dsh-pk-display-limit' },
-                    h('input', {
-                      className: 'dsh-pk-input',
-                      type: 'number',
-                      min: 500,
-                      max: 50000,
-                      step: 500,
-                      value: String(draftDisplay.limit ?? ''),
-                      disabled: busy !== '',
-                      onChange: (event) => patchDisplay('limit', event.target.value),
-                    }),
-                    h('span', null, LANG.displayLimitUnit),
-                  ),
-                  h('span', { className: 'dsh-pk-hint' }, LANG.displayNote),
-                ),
-                h('div', { className: 'dsh-pk-actions' },
-                  h('button', {
-                    className: 'dsh-pk-btn primary block',
-                    disabled: busy !== '',
-                    onClick: saveDisplay,
-                  }, busy === 'set-display' ? LANG.switching : LANG.displaySave),
-                ),
-              ),
-            ),
-            h('section', { className: 'dsh-pk-card' },
-              h('div', { className: 'dsh-pk-card-top' },
-                h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'display', size: 16 })),
-                h('div', { className: 'dsh-pk-card-heading' },
-                  h('span', { className: 'dsh-pk-card-title' }, LANG.surfaceCard),
-                  h('span', { className: 'dsh-pk-card-sub' }, LANG.surfaceHint),
-                ),
-              ),
-              h('div', { className: 'dsh-pk-field' },
-                h(Picker, {
-                  value: status.surface === 'desktop' ? 'desktop' : 'mobile',
-                  options: status.desktopAvailable === false
-                    ? [{ value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc }]
-                    : [
-                      { value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc },
-                      { value: 'desktop', label: LANG.surfaceDesktop, description: LANG.surfaceDesktopDesc },
-                    ],
-                  disabled: busy !== '',
-                  onChange: switchSurface,
-                }),
-                h('span', { className: 'dsh-pk-hint' }, status.desktopAvailable === false
-                  ? LANG.surfaceUnavailable
-                  : LANG.surfaceNote),
-              ),
-            ),
-            h('section', { className: 'dsh-pk-card dsh-pk-connect-card' },
-              h('div', { className: 'dsh-pk-card-top' },
-                h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'phone', size: 16 })),
-                h('div', { className: 'dsh-pk-card-heading' },
-                  h('span', { className: 'dsh-pk-card-title' }, LANG.connectCard),
-                  h('span', { className: 'dsh-pk-card-sub' }, LANG.connectHint),
-                ),
-                isOnline ? h(StatusPill, { tone: 'on', label: LANG.online }) : null,
-              ),
-              h('div', { className: 'dsh-pk-connect' },
-                h('div', { className: 'dsh-pk-qr-group' },
-                  h(QrCard, { label: LANG.public, qr: publicQr, emptyLabel: LANG.qrPublicEmpty }),
-                  h(QrCard, { label: LANG.lan, qr: lanQr, emptyLabel: LANG.qrLanEmpty }),
-                ),
-                h('div', { className: 'dsh-pk-links' },
-                  h(UrlRow, { label: LANG.local, url: urls.local }),
-                  isOnline ? h(UrlRow, { label: LANG.public, url: urls.publicUrl }) : null,
-                  lan.length === 0
-                    ? h('div', { className: 'dsh-pk-empty' }, LANG.noLan)
-                    : lan.map((url, index) => h(UrlRow, { key: `${url}-${index}`, label: LANG.lan, url })),
-                  h('div', { className: 'dsh-pk-note' }, LANG.warning),
-                ),
-              ),
-            ),
-            h('section', { className: 'dsh-pk-security' },
-              h('div', { className: 'dsh-pk-security-main' },
-                h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'shield', size: 16 })),
-                h('div', { className: 'dsh-pk-card-heading' },
-                  h('span', { className: 'dsh-pk-card-title' }, LANG.securityCard),
-                  h('span', { className: 'dsh-pk-card-sub' }, LANG.tokenHint),
-                ),
-                h('code', { className: 'dsh-pk-token' }, `${String(status.token ?? '').slice(0, 6)}…${String(status.token ?? '').slice(-4)}`),
-              ),
-              h('button', { className: 'dsh-pk-btn danger', disabled: busy !== '', onClick: rotate }, LANG.rotate),
-            ),
             error.length > 0 ? h('div', { className: 'dsh-pk-err' }, error) : null,
           ),
           toast.length > 0 ? h('div', { className: 'dsh-pk-toast' }, toast) : null,
