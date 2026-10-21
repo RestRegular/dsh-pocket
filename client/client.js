@@ -117,6 +117,19 @@ if (!alreadyRegistered()) {
         awakeActiveHint: '系统与屏幕正被阻止进入空闲睡眠。',
         awakeUnsupported: '当前平台不支持保持常亮。',
         awakeNote: '开关状态会保存，DSH 重启后恢复；锁屏仍由系统安全策略/屏幕保护决定。',
+        displayCard: '手机显示与截断',
+        displayHint: '控制手机端长内容的显示；桌面和手机会共用这份设置。',
+        displayTools: '工具输出',
+        displayToolsDesc: '工具结果与调用参数',
+        displayAssistant: 'Agent 回复',
+        displayAssistantDesc: '助手正文内容',
+        displayReasoning: '思考过程',
+        displayReasoningDesc: 'reasoning 内容',
+        displayLimit: '截断长度',
+        displayLimitUnit: '字符',
+        displaySave: '保存显示设置',
+        displayRange: '截断长度需在 500–50000 字符之间',
+        displayNote: '关闭某类截断后，这类内容会完整发送到手机，可能增加流量和首屏时间。',
       };
 
       const EN = {
@@ -203,6 +216,19 @@ if (!alreadyRegistered()) {
         awakeActiveHint: 'Idle sleep of the system and display is being blocked.',
         awakeUnsupported: 'Keep-awake is not supported on this platform.',
         awakeNote: 'The choice is saved and restored when DSH restarts. Lock screen policy is still controlled by the OS.',
+        displayCard: 'Phone display & truncation',
+        displayHint: 'Control how long content appears on the phone. Desktop and phone share these settings.',
+        displayTools: 'Tool output',
+        displayToolsDesc: 'Tool results and call arguments',
+        displayAssistant: 'Agent reply',
+        displayAssistantDesc: 'Assistant text content',
+        displayReasoning: 'Thinking',
+        displayReasoningDesc: 'Reasoning content',
+        displayLimit: 'Truncation length',
+        displayLimitUnit: 'chars',
+        displaySave: 'Save display settings',
+        displayRange: 'Truncation length must be between 500 and 50000 characters',
+        displayNote: 'When a category is not truncated, its content is sent to the phone in full and may increase traffic and first-load time.',
       };
 
       const LANG = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? ZH : EN;
@@ -334,6 +360,18 @@ if (!alreadyRegistered()) {
 .dsh-pk-security{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-2)}
 .dsh-pk-security-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
 .dsh-pk-token{font-family:var(--dsw-font-mono,ui-monospace,Consolas,monospace);font-size:11px;color:var(--dsw-alias-label-tertiary);padding:2px 7px;border-radius:6px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);white-space:nowrap}
+.dsh-pk-toggle-row{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1);margin-top:6px}
+.dsh-pk-toggle-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.dsh-pk-toggle-label{font-size:12px;font-weight:550;color:var(--dsw-alias-label-primary)}
+.dsh-pk-toggle-desc{font-size:10.5px;color:var(--dsw-alias-label-caption)}
+.dsh-pk-switch{position:relative;flex:none;width:36px;height:20px;padding:0;border:1px solid var(--dsw-alias-border-l4);border-radius:999px;background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1));cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.dsh-pk-switch:disabled{opacity:.5;cursor:default}
+.dsh-pk-switch.on{background:var(--dsw-alias-button-primary-fill,#3b70e8);border-color:transparent}
+.dsh-pk-switch-thumb{position:absolute;top:50%;left:2px;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-label-caption);transform:translateY(-50%);transition:left .15s ease,background .15s ease}
+.dsh-pk-switch.on .dsh-pk-switch-thumb{left:18px;background:#fff}
+.dsh-pk-display-limit{display:flex;align-items:center;gap:8px;margin-top:6px}
+.dsh-pk-display-limit .dsh-pk-input{flex:1;min-width:0}
+.dsh-pk-display-limit span{flex:none;font-size:11px;color:var(--dsw-alias-label-caption)}
 
 [data-platform='darwin'] .dsh-pk-head{padding-top:calc(30px + var(--dsh-frame-top-clearance,0px))}
 `;
@@ -407,6 +445,11 @@ if (!alreadyRegistered()) {
         check: ['m6 12 4 4 8-8'],
         plug: ['M9 7V3.5M15 7V3.5', 'M7 7h10v4a5 5 0 0 1-10 0z', 'M12 16v4.5'],
         bolt: ['M13 2.5 5 13.5h6.2L11 21.5l8-11h-6.2z'],
+        display: [
+          'M3.5 5.5h17v11h-17z',
+          'M9 20h6',
+          'M12 16.5V20',
+        ],
       };
 
       function LineIcon({ name, size = 16, className }) {
@@ -429,6 +472,27 @@ if (!alreadyRegistered()) {
         return h('span', { className: `dsh-pk-pill ${tone}` },
           h('i', { className: 'dsh-pk-pill-dot' }),
           label,
+        );
+      }
+
+      function Switch({ checked, onChange, disabled }) {
+        return h('button', {
+          type: 'button',
+          role: 'switch',
+          'aria-checked': checked === true,
+          className: `dsh-pk-switch${checked === true ? ' on' : ''}`,
+          disabled,
+          onClick: () => onChange(checked !== true),
+        }, h('span', { className: 'dsh-pk-switch-thumb' }));
+      }
+
+      function DisplayRow({ label, description, checked, onChange, disabled }) {
+        return h('div', { className: 'dsh-pk-toggle-row' },
+          h('div', { className: 'dsh-pk-toggle-copy' },
+            h('span', { className: 'dsh-pk-toggle-label' }, label),
+            h('span', { className: 'dsh-pk-toggle-desc' }, description),
+          ),
+          h(Switch, { checked, onChange, disabled }),
         );
       }
 
@@ -561,6 +625,7 @@ if (!alreadyRegistered()) {
         const [toast, setToast] = useState('');
         const [provider, setProvider] = useState('cloudflared');
         const [sshHost, setSshHost] = useState('');
+        const [displayDraft, setDisplayDraft] = useState(undefined);
         const timer = useRef(0);
 
         useEffect(() => {
@@ -568,6 +633,12 @@ if (!alreadyRegistered()) {
           setProvider(status.tunnel?.mode === 'ssh' ? 'ssh' : 'cloudflared');
           setSshHost(typeof status.tunnel?.sshHost === 'string' ? status.tunnel.sshHost : '');
         }, [status?.tunnel?.mode, status?.tunnel?.sshHost]);
+
+        useEffect(() => {
+          if (status?.display === undefined) return;
+          // 只在首次拿到状态时初始化草稿；3 秒轮询不要覆盖用户正在编辑的值。
+          setDisplayDraft((draft) => draft ?? status.display);
+        }, [status?.display]);
 
         const refresh = useCallback(async () => {
           try {
@@ -598,6 +669,7 @@ if (!alreadyRegistered()) {
           try {
             const next = await call(name, body ?? {});
             setStatus(next);
+            if (name === 'set-display' && next?.display !== undefined) setDisplayDraft(next.display);
             setError('');
           } catch (failure) {
             setError(String(failure?.message ?? failure));
@@ -618,6 +690,32 @@ if (!alreadyRegistered()) {
           }
           setError('');
           void action('switch-tunnel', { provider, sshHost: sshHost.trim() });
+        };
+
+        const draftDisplay = displayDraft ?? status?.display ?? {
+          truncateTools: true,
+          truncateAssistant: true,
+          truncateReasoning: true,
+          limit: 6000,
+        };
+        const patchDisplay = (key, value) => {
+          setDisplayDraft((draft) => ({ ...(draft ?? draftDisplay), [key]: value }));
+        };
+        const saveDisplay = () => {
+          const limit = Number(draftDisplay.limit);
+          if (!Number.isFinite(limit) || limit < 500 || limit > 50000) {
+            setError(LANG.displayRange);
+            return;
+          }
+          setError('');
+          void action('set-display', {
+            display: {
+              truncateTools: draftDisplay.truncateTools !== false,
+              truncateAssistant: draftDisplay.truncateAssistant !== false,
+              truncateReasoning: draftDisplay.truncateReasoning !== false,
+              limit: Math.round(limit),
+            },
+          });
         };
 
         if (status === undefined) {
@@ -809,6 +907,62 @@ if (!alreadyRegistered()) {
                   }, busy === 'keep-awake' ? LANG.switching : (awake.active ? LANG.awakeDisable : LANG.awakeEnable)),
                 ),
                 h('div', { className: 'dsh-pk-note' }, LANG.awakeNote),
+              ),
+              h('section', { className: 'dsh-pk-card' },
+                h('div', { className: 'dsh-pk-card-top' },
+                  h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'display', size: 16 })),
+                  h('div', { className: 'dsh-pk-card-heading' },
+                    h('span', { className: 'dsh-pk-card-title' }, LANG.displayCard),
+                    h('span', { className: 'dsh-pk-card-sub' }, LANG.displayHint),
+                  ),
+                ),
+                h('div', { className: 'dsh-pk-field' },
+                  h(DisplayRow, {
+                    label: LANG.displayTools,
+                    description: LANG.displayToolsDesc,
+                    checked: draftDisplay.truncateTools !== false,
+                    disabled: busy !== '',
+                    onChange: (value) => patchDisplay('truncateTools', value),
+                  }),
+                  h(DisplayRow, {
+                    label: LANG.displayAssistant,
+                    description: LANG.displayAssistantDesc,
+                    checked: draftDisplay.truncateAssistant !== false,
+                    disabled: busy !== '',
+                    onChange: (value) => patchDisplay('truncateAssistant', value),
+                  }),
+                  h(DisplayRow, {
+                    label: LANG.displayReasoning,
+                    description: LANG.displayReasoningDesc,
+                    checked: draftDisplay.truncateReasoning !== false,
+                    disabled: busy !== '',
+                    onChange: (value) => patchDisplay('truncateReasoning', value),
+                  }),
+                ),
+                h('div', { className: 'dsh-pk-field' },
+                  h('span', { className: 'dsh-pk-field-label' }, LANG.displayLimit),
+                  h('div', { className: 'dsh-pk-display-limit' },
+                    h('input', {
+                      className: 'dsh-pk-input',
+                      type: 'number',
+                      min: 500,
+                      max: 50000,
+                      step: 500,
+                      value: String(draftDisplay.limit ?? ''),
+                      disabled: busy !== '',
+                      onChange: (event) => patchDisplay('limit', event.target.value),
+                    }),
+                    h('span', null, LANG.displayLimitUnit),
+                  ),
+                  h('span', { className: 'dsh-pk-hint' }, LANG.displayNote),
+                ),
+                h('div', { className: 'dsh-pk-actions' },
+                  h('button', {
+                    className: 'dsh-pk-btn primary block',
+                    disabled: busy !== '',
+                    onClick: saveDisplay,
+                  }, busy === 'set-display' ? LANG.switching : LANG.displaySave),
+                ),
               ),
             ),
             h('section', { className: 'dsh-pk-card dsh-pk-connect-card' },

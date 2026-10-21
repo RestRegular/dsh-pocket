@@ -121,6 +121,45 @@ function truncate(text, limit) {
   return value.length <= limit ? value : `${value.slice(0, limit)}\n…（已截断 ${value.length - limit} 字符）`;
 }
 
+/** 截断长度允许范围（字符），与服务端保持一致。 */
+const DISPLAY_LIMIT_MIN = 500;
+const DISPLAY_LIMIT_MAX = 50_000;
+
+/**
+ * 归一化 Host 返回的显示/截断设置；旧 Host 没有该字段时保留当前值。
+ * @param {any} raw
+ * @returns {{ truncateTools: boolean, truncateAssistant: boolean, truncateReasoning: boolean, limit: number } | undefined}
+ */
+function normalizeDisplaySettings(raw) {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const current = state?.display ?? { truncateTools: true, truncateAssistant: true, truncateReasoning: true, limit: 6_000 };
+  const number = Number(raw.limit);
+  return {
+    truncateTools: typeof raw.truncateTools === 'boolean' ? raw.truncateTools : current.truncateTools,
+    truncateAssistant: typeof raw.truncateAssistant === 'boolean' ? raw.truncateAssistant : current.truncateAssistant,
+    truncateReasoning: typeof raw.truncateReasoning === 'boolean' ? raw.truncateReasoning : current.truncateReasoning,
+    limit: Number.isFinite(number)
+      ? Math.min(DISPLAY_LIMIT_MAX, Math.max(DISPLAY_LIMIT_MIN, Math.round(number)))
+      : current.limit,
+  };
+}
+
+/**
+ * 按类别截断文本：tool / reasoning / assistant。
+ * @param {string} text
+ * @param {'tool' | 'reasoning' | 'assistant'} kind
+ * @returns {string}
+ */
+function truncateForDisplay(text, kind) {
+  const display = state.display;
+  const enabled = kind === 'tool'
+    ? display.truncateTools
+    : kind === 'reasoning'
+      ? display.truncateReasoning
+      : display.truncateAssistant;
+  return enabled ? truncate(text, display.limit) : String(text ?? '');
+}
+
 function prettyJson(text) {
   const value = String(text ?? '');
   try {
@@ -490,6 +529,7 @@ const state = {
   counts: { total: 0, workspaces: 0, archived: 0 },
   features: undefined,
   awake: undefined,
+  display: { truncateTools: true, truncateAssistant: true, truncateReasoning: true, limit: 6_000 },
   pinnedIds: [],
   showArchived: localStorage.getItem('dsh_pocket_show_archived') === '1',
   collapsed: (() => {
@@ -584,8 +624,11 @@ function renderShell() {
       <button class="balance-card" id="balance-card" hidden title="点击刷新余额"></button>
       <div class="search">${ICONS.search}<input id="search" placeholder="搜索会话、工作区或目录" autocomplete="off"></div>
       <div id="session-list"></div>
+      <button class="list-settings" id="display-settings" style="display:none">${ICONS.sliders}<span>显示与截断设置</span></button>
     </div>`;
   bindThemeButtons();
+  document.querySelector('#display-settings').addEventListener('click', () => openDisplaySettings());
+  updateDisplaySettingsEntry();
 }
 
 /**
@@ -601,6 +644,9 @@ function applySessionPayload(payload) {
   // 旧 Host 不返回 features；保持 undefined，行内“更多”入口就不渲染。
   if (payload.features !== undefined) state.features = payload.features;
   if (payload.awake !== undefined) state.awake = payload.awake;
+  const display = normalizeDisplaySettings(payload.display);
+  if (display !== undefined) state.display = display;
+  updateDisplaySettingsEntry();
   // 置顶集合按“最近置顶在前”返回，组内置顶行按这个顺序排。
   const pinnedRows = Array.isArray(payload.pinned) ? payload.pinned : [];
   state.pinnedIds = pinnedRows.map((row) => row.id);
@@ -1939,6 +1985,12 @@ function closeChat() {
   if (current !== undefined) {
     clearTimeout(current.reconnectTimer);
     clearInterval(current.questionTimer);
+    clearTimeout(current.scrollTimer);
+    clearTimeout(current.programmaticTimer);
+    if (current.renderFrame !== 0) {
+      clearTimeout(current.renderFrame);
+      current.renderFrame = 0;
+    }
     if (current.source !== undefined) {
       try {
         current.source.close();
@@ -1961,6 +2013,8 @@ function openChat(id) {
     messages: [],
     toolResults: new Map(),
     openTools: new Set(),
+    openReasoning: new Set(),
+    closedReasoning: new Set(),
     images: [],
     controls: undefined,
     questions: [],
@@ -1975,6 +2029,16 @@ function openChat(id) {
     ready: false,
     snapshotLoading: false,
     nearBottom: true,
+    scrolling: false,
+    pendingMessages: false,
+    pendingTransient: false,
+    pendingRenderOptions: undefined,
+    scrollTimer: undefined,
+    programmaticScroll: false,
+    programmaticTarget: 0,
+    programmaticTimer: undefined,
+    smoothScrolling: false,
+    holdFollow: false,
     source: undefined,
     reconnectTimer: undefined,
     renderFrame: 0,
@@ -2043,16 +2107,7 @@ function renderChatShell() {
     window.location.hash = '#/';
   });
   document.querySelector('#chat-refresh').addEventListener('click', () => {
-    if (state.current === undefined) return;
-    closeChatSource();
-    state.current.seen.clear();
-    state.current.messages = [];
-    state.current.toolResults.clear();
-    state.current.minSeq = undefined;
-    state.current.ready = false;
-    state.current.snapshotLoading = true;
-    renderMessages();
-    connectStream(state.current.id);
+    reloadChat();
   });
   document.querySelector('#chat-files').addEventListener('click', () => {
     const current = state.current;
@@ -2097,13 +2152,12 @@ function renderChatShell() {
     renderImageStrip();
     updateSendState();
   });
-  document.querySelector('#chat-scroll').addEventListener('scroll', () => {
-    const scroll = document.querySelector('#chat-scroll');
-    if (state.current !== undefined) {
-      state.current.nearBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 140;
-    }
-    syncScrollButton();
-  });
+  const scroll = document.querySelector('#chat-scroll');
+  scroll.addEventListener('pointerdown', () => markUserScrolling(), { passive: true });
+  scroll.addEventListener('touchstart', () => markUserScrolling(), { passive: true });
+  scroll.addEventListener('touchmove', () => markUserScrolling(), { passive: true });
+  scroll.addEventListener('wheel', () => markUserScrolling(), { passive: true });
+  scroll.addEventListener('scroll', () => handleChatScroll());
   document.querySelector('#scroll-bottom').addEventListener('click', () => jumpToBottom());
   autosize(textarea);
   updateSendState();
@@ -2132,6 +2186,10 @@ async function loadCapabilities(id) {
     const current = state.current;
     if (current?.id !== id) return;
     current.features = status.features ?? {};
+    if (status.features !== undefined) state.features = status.features;
+    const display = normalizeDisplaySettings(status.display);
+    if (display !== undefined) state.display = display;
+    updateDisplaySettingsEntry();
     const tools = document.querySelector('.composer-tools');
     if (tools !== null) tools.style.display = status.features?.controls === true ? 'flex' : 'none';
     const filesButton = document.querySelector('#chat-files');
@@ -2216,6 +2274,125 @@ function insertComposerText(text) {
 }
 
 /**
+ * 首页「显示与截断设置」入口的显隐；旧 Host 没有该能力时不显示。
+ */
+function updateDisplaySettingsEntry() {
+  const button = document.querySelector('#display-settings');
+  if (button === null) return;
+  button.style.display = state.features?.displaySettings === true ? 'flex' : 'none';
+}
+
+/**
+ * 打开手机端显示/截断设置。桌面 Pocket 面板里改的是同一份持久化设置。
+ */
+function openDisplaySettings() {
+  const display = state.display;
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal sheet');
+  modal.innerHTML = `
+    <div class="sheet-head">
+      <h3>显示与截断</h3>
+      <button class="iconbtn" id="display-close" title="关闭" aria-label="关闭">${ICONS.close}</button>
+    </div>
+    <div class="sheet-scroll">
+      <section class="sheet-section">
+        <div class="sheet-label">长内容截断</div>
+        <div class="display-options">
+          <label class="display-option">
+            <span class="display-option-text"><b>工具输出</b><span>工具结果与调用参数</span></span>
+            <input type="checkbox" id="display-tools"${display.truncateTools ? ' checked' : ''}>
+          </label>
+          <label class="display-option">
+            <span class="display-option-text"><b>Agent 回复</b><span>助手的正文内容</span></span>
+            <input type="checkbox" id="display-assistant"${display.truncateAssistant ? ' checked' : ''}>
+          </label>
+          <label class="display-option">
+            <span class="display-option-text"><b>思考过程</b><span>reasoning 内容</span></span>
+            <input type="checkbox" id="display-reasoning"${display.truncateReasoning ? ' checked' : ''}>
+          </label>
+        </div>
+        <div class="sheet-label" style="margin-top:6px">截断长度</div>
+        <div class="display-length">
+          <input class="sheet-input" id="display-limit" type="number" inputmode="numeric" min="${DISPLAY_LIMIT_MIN}" max="${DISPLAY_LIMIT_MAX}" step="500" value="${display.limit}">
+          <span>字符</span>
+        </div>
+        <div class="sheet-hint">超过上限的内容会显示截断标记，完整内容仍保存在会话里。关闭截断后长输出会完整传到手机，可能变慢。</div>
+      </section>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="display-cancel">取消</button>
+      <button class="btn primary" id="display-save">保存</button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  modal.querySelector('#display-close').addEventListener('click', close);
+  modal.querySelector('#display-cancel').addEventListener('click', close);
+  modal.querySelector('#display-save').addEventListener('click', async () => {
+    const limit = Number(modal.querySelector('#display-limit').value);
+    if (!Number.isFinite(limit) || limit < DISPLAY_LIMIT_MIN || limit > DISPLAY_LIMIT_MAX) {
+      toast(`截断长度需在 ${DISPLAY_LIMIT_MIN}–${DISPLAY_LIMIT_MAX} 字符之间`);
+      return;
+    }
+    const button = modal.querySelector('#display-save');
+    button.disabled = true;
+    button.textContent = '保存中…';
+    try {
+      const payload = await api('/api/display', {
+        method: 'POST',
+        body: JSON.stringify({
+          truncateTools: modal.querySelector('#display-tools').checked,
+          truncateAssistant: modal.querySelector('#display-assistant').checked,
+          truncateReasoning: modal.querySelector('#display-reasoning').checked,
+          limit,
+        }),
+      });
+      const next = normalizeDisplaySettings(payload.display);
+      if (next !== undefined) state.display = next;
+      close();
+      toast('显示设置已保存', 'ok');
+      if (state.current !== undefined) reloadChat();
+      else renderSessionList();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = '保存';
+      toast(error.message ?? String(error));
+    }
+  });
+}
+
+/**
+ * 重新拉取当前会话历史；显示/截断设置改变后用它丢掉旧的截断数据。
+ */
+function reloadChat() {
+  const current = state.current;
+  if (current === undefined) return;
+  closeChatSource();
+  current.seen.clear();
+  current.messages = [];
+  current.toolResults.clear();
+  current.openTools.clear();
+  current.openReasoning.clear();
+  current.closedReasoning.clear();
+  current.minSeq = undefined;
+  current.ready = false;
+  current.snapshotLoading = true;
+  current.scrolling = false;
+  current.pendingMessages = false;
+  current.pendingTransient = false;
+  current.pendingRenderOptions = undefined;
+  current.nearBottom = true;
+  current.holdFollow = false;
+  clearTimeout(current.scrollTimer);
+  clearTimeout(current.programmaticTimer);
+  renderMessages();
+  connectStream(current.id);
+}
+
+/**
  * 打开模型 / 权限 / 技能设置面板。
  * @returns {Promise<void>}
  */
@@ -2277,6 +2454,12 @@ async function openControlsSheet() {
         <input id="control-skill-search" class="sheet-input" placeholder="搜索技能…" autocomplete="off">
         <div class="skill-list" id="control-skills"></div>
       </section>
+      ${state.features?.displaySettings === true
+        ? `<section class="sheet-section">
+        <div class="sheet-label">手机显示</div>
+        <button class="btn" id="open-display-settings">显示与截断设置</button>
+      </section>`
+        : ''}
     </div>
     <div class="modal-actions">
       <button class="btn" id="control-cancel">关闭</button>
@@ -2291,6 +2474,10 @@ async function openControlsSheet() {
   });
   modal.querySelector('#sheet-close').addEventListener('click', close);
   modal.querySelector('#control-cancel').addEventListener('click', close);
+  modal.querySelector('#open-display-settings')?.addEventListener('click', () => {
+    close();
+    openDisplaySettings();
+  });
 
   const modelSelect = modal.querySelector('#control-model');
   choices.forEach((choice, index) => {
@@ -2890,19 +3077,125 @@ function updateChatHeader() {
   updateSendState();
 }
 
+/**
+ * 用户正在触摸/滚轮/惯性滚动：暂停重绘与自动吸底，避免流式内容抢滚动。
+ * 滚动停止 220ms 后补一次渲染。
+ */
+function markUserScrolling() {
+  const current = state.current;
+  if (current === undefined) return;
+  current.programmaticScroll = false;
+  current.smoothScrolling = false;
+  current.scrolling = true;
+  clearTimeout(current.scrollTimer);
+  current.scrollTimer = setTimeout(() => {
+    if (state.current !== current) return;
+    current.scrolling = false;
+    flushDeferredRenders();
+  }, 220);
+}
+
+/**
+ * 只改滚动位置、不触发“用户正在滚动”的判定。
+ * @param {HTMLElement} scroll
+ * @param {number} top
+ */
+function applyScrollTop(scroll, top) {
+  const current = state.current;
+  const clamped = Math.max(0, Math.min(top, scroll.scrollHeight - scroll.clientHeight));
+  if (current !== undefined) {
+    current.programmaticScroll = true;
+    current.programmaticTarget = clamped;
+    clearTimeout(current.programmaticTimer);
+    current.programmaticTimer = setTimeout(() => {
+      if (state.current === current) current.programmaticScroll = false;
+    }, 80);
+  }
+  scroll.scrollTop = clamped;
+}
+
+/** 聊天滚动位置变化：更新“是否在底部”，并进入用户滚动状态。 */
+function handleChatScroll() {
+  const scroll = document.querySelector('#chat-scroll');
+  const current = state.current;
+  if (scroll === null || current === undefined) return;
+  const distance = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
+  if (current.programmaticScroll === true) {
+    const target = current.programmaticTarget;
+    current.programmaticScroll = false;
+    // 只有滚动位置确实是我们刚设置的值时才按程序化滚动处理。
+    if (typeof target === 'number' && Math.abs(scroll.scrollTop - target) <= 2) {
+      current.nearBottom = current.holdFollow === true ? false : distance < 140;
+      syncScrollButton();
+      return;
+    }
+  }
+  if (current.smoothScrolling === true) {
+    // 平滑回到底部期间忽略中间位置；用户一碰就会把 smoothScrolling 清掉。
+    if (distance > 4) return;
+    current.smoothScrolling = false;
+  }
+  current.nearBottom = distance < 140;
+  if (current.nearBottom) current.holdFollow = false;
+  syncScrollButton();
+  markUserScrolling();
+}
+
+/** 用户停止滚动后，把期间排队的一次渲染补上。 */
+function flushDeferredRenders() {
+  const current = state.current;
+  if (current === undefined) return;
+  if (current.pendingMessages === true) {
+    current.pendingMessages = false;
+    current.pendingTransient = false;
+    const options = current.pendingRenderOptions;
+    current.pendingRenderOptions = undefined;
+    renderMessages(options ?? {});
+  } else if (current.pendingTransient === true) {
+    current.pendingTransient = false;
+    renderTransient();
+  }
+  if (current.nearBottom) scrollToBottom(false);
+}
+
+/**
+ * 展开/收起消息里的 details 时暂时停住自动吸底，避免下一次流式帧把视图拉回底部。
+ */
+function holdChatScrollForInspection() {
+  const current = state.current;
+  if (current === undefined) return;
+  current.nearBottom = false;
+  current.holdFollow = true;
+  current.scrolling = true;
+  current.smoothScrolling = false;
+  clearTimeout(current.scrollTimer);
+  current.scrollTimer = setTimeout(() => {
+    if (state.current !== current) return;
+    current.scrolling = false;
+    flushDeferredRenders();
+  }, 600);
+  syncScrollButton();
+}
+
 function scrollToBottom(force = false) {
   const scroll = document.querySelector('#chat-scroll');
+  const current = state.current;
   if (scroll === null) return;
-  if (force || state.current?.nearBottom !== false) {
-    if (state.current !== undefined) state.current.nearBottom = true;
+  if (force !== true && (current?.scrolling === true || current?.holdFollow === true)) return;
+  if (force === true && current !== undefined) current.holdFollow = false;
+  if (force || current?.nearBottom !== false) {
+    if (current !== undefined) current.nearBottom = true;
     requestAnimationFrame(() => {
-      scroll.scrollTop = scroll.scrollHeight;
+      const live = state.current;
+      if (live === undefined) return;
+      if (force !== true && (live.scrolling === true || live.nearBottom === false)) return;
+      applyScrollTop(scroll, scroll.scrollHeight);
     });
   }
   syncScrollButton();
 }
 
-/** 同步「回到底部」按钮：只在用户翻到上面时出现。 */
+/** 同步“回到底部”按钮：只在用户翻到上面时出现。 */
 function syncScrollButton() {
   const button = document.querySelector('#scroll-bottom');
   if (button === null) return;
@@ -2911,16 +3204,26 @@ function syncScrollButton() {
 
 /** 一键回到底部；优先平滑滚动，尊重“减少动态效果”。 */
 function jumpToBottom() {
+  const current = state.current;
+  if (current !== undefined) {
+    current.scrolling = false;
+    current.holdFollow = false;
+    current.pendingMessages = false;
+    current.pendingTransient = false;
+    clearTimeout(current.scrollTimer);
+    flushDeferredRenders();
+    current.nearBottom = true;
+  }
   const scroll = document.querySelector('#chat-scroll');
   if (scroll !== null) {
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-    if (!reduceMotion && typeof scroll.scrollTo === 'function') {
-      scroll.scrollTo({ top: scroll.scrollHeight, behavior: 'smooth' });
+    if (current !== undefined) current.smoothScrolling = !reduceMotion && typeof scroll.scrollTo === 'function';
+    if (reduceMotion || typeof scroll.scrollTo !== 'function') {
+      applyScrollTop(scroll, scroll.scrollHeight);
     } else {
-      scroll.scrollTop = scroll.scrollHeight;
+      scroll.scrollTo({ top: scroll.scrollHeight, behavior: 'smooth' });
     }
   }
-  if (state.current !== undefined) state.current.nearBottom = true;
   syncScrollButton();
 }
 
@@ -3246,22 +3549,37 @@ function applyStream(frame) {
 
 function scheduleTransientRender() {
   const current = state.current;
-  if (current === undefined || current.renderFrame !== 0) return;
-  current.renderFrame = requestAnimationFrame(() => {
-    if (state.current !== current) return;
+  if (current === undefined) return;
+  if (current.scrolling === true) {
+    current.pendingTransient = true;
+    return;
+  }
+  if (current.renderFrame !== 0) return;
+  // 80ms 节流：流式 token 很密集，逐帧替换 DOM 会打断手机上的惯性滚动。
+  current.renderFrame = setTimeout(() => {
     current.renderFrame = 0;
+    if (state.current !== current) return;
+    if (current.scrolling === true) {
+      current.pendingTransient = true;
+      return;
+    }
     renderTransient();
     scrollToBottom(false);
-  });
+  }, 80);
 }
 
 /* -------------------------------------------------------------------------- */
 /* 渲染消息                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function renderMessages() {
+function renderMessages(options = {}) {
   const current = state.current;
   if (current === undefined) return;
+  if (current.scrolling === true) {
+    current.pendingMessages = true;
+    current.pendingRenderOptions = options;
+    return;
+  }
   const list = document.querySelector('#msg-list');
   if (list === null) return;
 
@@ -3308,9 +3626,13 @@ function renderMessages() {
 
   if (scroll !== null) {
     if (wasNearBottom) {
-      scroll.scrollTop = scroll.scrollHeight;
-    } else if (current.messages.length > 0 && previousHeight > 0) {
-      scroll.scrollTop = previousTop + (scroll.scrollHeight - previousHeight);
+      applyScrollTop(scroll, scroll.scrollHeight);
+    } else if (options.preserveGap === true && current.messages.length > 0 && previousHeight > 0) {
+      // 往上加载历史时把新增内容留在视口上方，保持当前阅读位置。
+      applyScrollTop(scroll, previousTop + (scroll.scrollHeight - previousHeight));
+    } else {
+      // 流式内容只会追加在底部；用户翻到上面时保持绝对滚动位置，不被持续推下去。
+      applyScrollTop(scroll, previousTop);
     }
   }
 }
@@ -3350,17 +3672,20 @@ function renderAssistantMessage(message) {
   const wrap = el('div', 'msg assistant');
   const bubble = el('div', 'bubble');
   let toolSeen = false;
-  for (const block of message.blocks ?? []) {
+  const blocks = message.blocks ?? [];
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const blockKey = `${message.seq ?? message.time ?? 0}:${index}`;
     if (block.type === 'reasoning') {
       if ((block.text ?? '').trim().length === 0) continue;
-      bubble.appendChild(reasoningNode(block.text));
+      bubble.appendChild(reasoningNode(block.text, blockKey));
     } else if (block.type === 'text') {
       if ((block.text ?? '').trim().length === 0) continue;
-      const md = el('div', 'md', renderMarkdown(block.text));
+      const md = el('div', 'md', renderMarkdown(truncateForDisplay(block.text, 'assistant')));
       bubble.appendChild(md);
     } else if (block.type === 'tool-call') {
       toolSeen = true;
-      bubble.appendChild(toolNode(block, state.current?.toolResults.get(block.id), message.time));
+      bubble.appendChild(toolNode(block, state.current?.toolResults.get(block.id), message.time, blockKey));
     } else if (block.type === 'image') {
       const holder = el('div');
       holder.innerHTML = attachmentImage(state.current?.id, block);
@@ -3390,13 +3715,35 @@ function renderAssistantMessage(message) {
   return wrap;
 }
 
-function reasoningNode(text) {
+function reasoningNode(text, key, defaultOpen = false) {
   const details = el('details', 'thinking');
   const summary = el('summary');
   summary.textContent = '思考过程';
   const body = el('div', 'body');
-  body.textContent = text;
+  body.textContent = truncateForDisplay(text, 'reasoning');
   details.append(summary, body);
+  // 记住展开状态：流式重绘 / 历史刷新时不要把用户展开的思考过程收回去。
+  const openReasoning = state.current?.openReasoning;
+  const closedReasoning = state.current?.closedReasoning;
+  const rememberedOpen = key !== undefined && openReasoning?.has(key) === true;
+  const rememberedClosed = key !== undefined && closedReasoning?.has(key) === true;
+  const open = rememberedOpen || (defaultOpen && !rememberedClosed);
+  if (open) details.open = true;
+  let expectedOpen = open;
+  details.addEventListener('toggle', () => {
+    if (details.open === expectedOpen) return;
+    expectedOpen = details.open;
+    if (key !== undefined && openReasoning !== undefined) {
+      if (details.open) {
+        openReasoning.add(key);
+        closedReasoning?.delete(key);
+      } else {
+        openReasoning.delete(key);
+        closedReasoning?.add(key);
+      }
+    }
+    holdChatScrollForInspection();
+  });
   return details;
 }
 
@@ -3456,7 +3803,7 @@ function toolSummary(call, result) {
   return '点击展开详情';
 }
 
-function toolNode(call, result, time) {
+function toolNode(call, result, time, key) {
   const node = el('details', 'tool');
   const head = el('summary', 'tool-head');
   head.appendChild(el('span', 'tool-icon', toolIcon(call.name)));
@@ -3474,31 +3821,47 @@ function toolNode(call, result, time) {
   node.appendChild(head);
 
   const body = el('div', 'tool-body');
-  const args = prettyJson(call.arguments ?? '');
+  const args = truncateForDisplay(prettyJson(call.arguments ?? ''), 'tool');
   if (args.trim().length > 0) {
     body.appendChild(el('div', 'tool-label', '参数'));
-    body.appendChild(el('pre', '', escapeHtml(truncate(args, 6000))));
+    body.appendChild(el('pre', '', escapeHtml(args)));
   }
   if (result !== undefined) {
-    const text = truncate(blocksText(result.blocks), 20_000);
+    const text = truncateForDisplay(blocksText(result.blocks), 'tool');
     body.appendChild(el('div', 'tool-label', result.isError === true ? '错误' : '结果'));
     body.appendChild(el('pre', '', escapeHtml(text.length > 0 ? text : '（无文本输出）')));
   }
   node.appendChild(body);
 
   // 折叠状态按 callId 记住，SSE 重绘时不会把用户展开的卡片收回去。
-  const id = typeof call.id === 'string' ? call.id : '';
+  const id = typeof call.id === 'string' && call.id.length > 0
+    ? call.id
+    : typeof key === 'string'
+      ? key
+      : '';
   const openTools = state.current?.openTools;
-  if (id.length > 0 && openTools?.has(id) === true) node.open = true;
+  const open = id.length > 0 && openTools?.has(id) === true;
+  if (open) node.open = true;
+  let expectedOpen = open;
   node.addEventListener('toggle', () => {
-    if (id.length === 0 || state.current?.openTools === undefined) return;
-    if (node.open) state.current.openTools.add(id);
-    else state.current.openTools.delete(id);
+    if (node.open === expectedOpen) return;
+    expectedOpen = node.open;
+    if (id.length > 0 && state.current?.openTools !== undefined) {
+      if (node.open) state.current.openTools.add(id);
+      else state.current.openTools.delete(id);
+    }
+    holdChatScrollForInspection();
   });
   return node;
 }
 
 function renderTransient() {
+  const current = state.current;
+  if (current === undefined) return;
+  if (current.scrolling === true) {
+    current.pendingTransient = true;
+    return;
+  }
   const slot = document.querySelector('#transient-slot');
   if (slot !== null) renderTransientInto(slot);
 }
@@ -3514,15 +3877,16 @@ function renderTransientInto(slot) {
   const wrap = el('div', 'msg assistant transient');
   const bubble = el('div', 'bubble');
   if (transient.reasoning.length > 0) {
-    const details = reasoningNode(transient.reasoning);
-    details.open = true;
-    bubble.appendChild(details);
+    bubble.appendChild(reasoningNode(transient.reasoning, 'transient', true));
   }
+  let toolIndex = 0;
   for (const tool of transient.tools.values()) {
-    bubble.appendChild(toolNode({ id: tool.id, name: tool.name || 'tool', arguments: tool.args }, undefined));
+    const key = typeof tool.id === 'string' && tool.id.length > 0 ? `stream:${tool.id}` : `stream:index:${toolIndex}`;
+    bubble.appendChild(toolNode({ id: tool.id, name: tool.name || 'tool', arguments: tool.args }, undefined, undefined, key));
+    toolIndex += 1;
   }
   if (transient.text.length > 0) {
-    const md = el('div', 'md', renderMarkdown(transient.text));
+    const md = el('div', 'md', renderMarkdown(truncateForDisplay(transient.text, 'assistant')));
     bubble.appendChild(md);
   }
   if (transient.active === true) {
@@ -3554,7 +3918,7 @@ async function loadOlder(button) {
     current.hasMore = payload.hasMore === true;
     // applyEvent 已把旧消息 push 到尾部；按 seq 重排即可恢复时间顺序。
     current.messages.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
-    renderMessages();
+    renderMessages({ preserveGap: true });
   } catch (error) {
     button.disabled = false;
     button.textContent = '加载更早的消息';

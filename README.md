@@ -127,8 +127,9 @@ sshExposePort: 80
 
 - 会话列表：按工作区分组（顺序与桌面侧栏一致）、标题、运行状态、最新活动时间；工作区可折叠/展开并记住状态；每个工作区标题右侧的 `+` 直接在对应目录新建会话；空会话（点过新建但没发消息）不显示；顶部按钮切换是否显示已归档会话；搜索会话/工作区/目录。
 - 会话操作：会话行右侧「更多」→ 置顶/取消置顶（只在所属工作区内排到最前）、重命名、归档/取消归档、复制 Session ID。归档运行中的会话会先确认，Host 拒绝时再提供「停止并归档」。
-- 聊天流：用户/助手消息、Markdown（标题、列表、代码块、表格、图片）、思考过程折叠、工具调用参数与结果、token 用量。Markdown 里的相对图片路径按当前会话工作区解析。往上翻看历史时，输入框上方出现「回到底部」按钮，一键滚回最新消息。
+- 聊天流：用户/助手消息、Markdown（标题、列表、代码块、表格、图片）、思考过程折叠、工具调用参数与结果、token 用量。Markdown 里的相对图片路径按当前会话工作区解析。往上翻看历史时，输入框上方出现「回到底部」按钮，一键滚回最新消息；流式输出期间向上滚动会暂停重绘和自动吸底，展开的思考/工具卡片在重绘后保持展开，不会把阅读位置拉走。
 - 工具卡片：默认折叠，标题里显示自动截断的命令/路径/查询摘要；点开看完整参数与结果，展开状态在流式重绘时保持。
+- 手机显示与截断：首页底部「显示与截断设置」或会话设置里的入口，可分别关闭「工具输出」「Agent 回复」「思考过程」的截断，并设置 500–50000 字符的截断长度（默认 6000）。设置保存在 Host，桌面 Pocket 面板的同一张卡片也能修改；手机和桌面共用一份。
 - 输入框：`Enter` 发送、`Shift+Enter` 换行；运行中显示停止按钮，发送会进入 DSH 的队列。选图后先在本地压缩（长边 2048px、单张约 ≤1.5 MB），支持 png/jpeg/webp/gif/heic/heif/avif；单张上限 6 MB、总计 15 MB。
 - 新建会话：直接点工作区标题右侧的 `+`，新会话自动挂到该工作区。
 - 工作区文件树：首页工作区标题右侧的文件夹按钮，或会话顶栏的文件夹按钮，打开手机端文件浏览器；目录按层加载，面包屑可回退。文本/代码文件直接预览（最大 400 KB，超出部分截断），图片直接显示；可复制相对路径或完整路径，会话内还能把文件作为 `@路径` 引用插入输入框（含空格的路径自动写成 `@"..."`，目录带尾斜杠）。
@@ -145,6 +146,8 @@ sshExposePort: 80
 | --- | --- | --- |
 | GET | `/` | 移动页面（无令牌时显示解锁页）。 |
 | GET | `/api/balance` | 当前账户余额与赠金；`?force=1` 绕过 60 秒缓存。未登录/API Key 模式返回 `available: false`。 |
+| GET | `/api/display` | 当前手机端显示/截断设置（三个开关 + `limit` 字符数）。 |
+| POST | `/api/display` | 更新显示/截断设置，`{ "truncateTools", "truncateAssistant", "truncateReasoning", "limit" }`；未传字段保持不变，长度限制在 500–50000。 |
 | GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组和 `pending`（等待回答的提问/审批摘要）。 |
 | POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
 | POST | `/api/keep-awake` | `{ "enabled": true \| false }`，打开/关闭宿主的「保持电脑常亮」，返回最新 `awake` 状态。 |
@@ -173,7 +176,7 @@ sshExposePort: 80
 | GET | `/api/workspace/text?root=...&path=` | 首页工作区文件预览，规则同上。 |
 | GET | `/api/workspace/file?root=...&path=` | 首页文件树里的图片预览。 |
 
-桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`restart`。
+桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`restart`。
 
 模型工具 `pocket_share` 会把当前手机入口地址交给模型，方便用户直接要链接。
 
