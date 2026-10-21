@@ -220,6 +220,7 @@ const ICONS = {
   chevronDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 9 7 7 7-7"/></svg>',
   image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 4.5-4.5 3.5 3.5 2.5-2.5L19 17"/></svg>',
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="7" cy="17" r="2"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5 5 13.5h6.2L11 21.5l8-11h-6.2z"/></svg>',
   wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H18a1 1 0 0 1 1 1v2"/><rect x="3.5" y="8" width="17" height="11.5" rx="3"/><path d="M20.5 12H16a2 2 0 0 0 0 4h4.5"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
@@ -277,6 +278,15 @@ function applyTheme() {
 
 function cycleTheme() {
   const next = THEME_MODES[(THEME_MODES.indexOf(themeMode) + 1) % THEME_MODES.length];
+  setThemeMode(next);
+}
+
+/**
+ * 直接设置主题模式（设置页与顶栏共用）。
+ * @param {'system' | 'light' | 'dark'} next
+ */
+function setThemeMode(next) {
+  if (!THEME_MODES.includes(next)) return;
   themeMode = next;
   try {
     localStorage.setItem(THEME_KEY, next);
@@ -622,12 +632,12 @@ function renderShell() {
     </header>
     <div class="list-scroll" id="list-scroll">
       <button class="balance-card" id="balance-card" hidden title="点击刷新余额"></button>
+      <button class="settings-entry" id="settings-entry" style="display:none">${ICONS.gear}<span>设置</span>${ICONS.chevron}</button>
       <div class="search">${ICONS.search}<input id="search" placeholder="搜索会话、工作区或目录" autocomplete="off"></div>
       <div id="session-list"></div>
-      <button class="list-settings" id="display-settings" style="display:none">${ICONS.sliders}<span>显示与截断设置</span></button>
     </div>`;
   bindThemeButtons();
-  document.querySelector('#display-settings').addEventListener('click', () => openDisplaySettings());
+  document.querySelector('#settings-entry').addEventListener('click', () => openDisplaySettings());
   updateDisplaySettingsEntry();
 }
 
@@ -2277,47 +2287,94 @@ function insertComposerText(text) {
  * 首页「显示与截断设置」入口的显隐；旧 Host 没有该能力时不显示。
  */
 function updateDisplaySettingsEntry() {
-  const button = document.querySelector('#display-settings');
+  const button = document.querySelector('#settings-entry');
   if (button === null) return;
-  button.style.display = state.features?.displaySettings === true ? 'flex' : 'none';
+  // 设置页里还有纯本机的主题/列表设置，不依赖 Host 是否支持截断。
+  button.style.display = 'flex';
 }
 
+/** 设置页的标签页；顺序与文案固定，未知值回退到截断。 */
+const SETTINGS_TABS = [
+  { id: 'appearance', label: '外观' },
+  { id: 'list', label: '列表' },
+  { id: 'truncate', label: '截断' },
+];
+const SETTINGS_TAB_KEY = 'dsh_pocket_settings_tab';
+
 /**
- * 打开手机端显示/截断设置。桌面 Pocket 面板里改的是同一份持久化设置。
+ * 打开手机端设置。外观/列表只影响本机页面，截断设置与桌面 Pocket 面板共用。
  */
 function openDisplaySettings() {
-  const display = state.display;
+  const supportsDisplay = state.features?.displaySettings === true;
+  const tabs = SETTINGS_TABS.filter((tab) => tab.id !== 'truncate' || supportsDisplay);
+  const draft = {
+    display: { ...state.display },
+    theme: themeMode,
+  };
+  let initialTab = localStorage.getItem(SETTINGS_TAB_KEY) ?? 'truncate';
+  if (!tabs.some((tab) => tab.id === initialTab)) initialTab = tabs[0]?.id ?? 'appearance';
+
+  const themeOptions = [
+    { value: 'system', label: '跟随系统', icon: ICONS.autoTheme },
+    { value: 'light', label: '浅色', icon: ICONS.sun },
+    { value: 'dark', label: '深色', icon: ICONS.moon },
+  ];
+  const themeButtons = themeOptions.map((option) => `
+    <button class="theme-choice" data-theme-mode="${option.value}">
+      <span class="theme-choice-icon">${option.icon}</span>
+      <span>${option.label}</span>
+    </button>`).join('');
+
   const mask = el('div', 'modal-mask');
-  const modal = el('div', 'modal sheet');
+  const modal = el('div', 'modal sheet settings-sheet');
   modal.innerHTML = `
     <div class="sheet-head">
-      <h3>显示与截断</h3>
+      <h3>设置</h3>
       <button class="iconbtn" id="display-close" title="关闭" aria-label="关闭">${ICONS.close}</button>
     </div>
+    <div class="settings-tabs" role="tablist">
+      ${tabs.map((tab) => `<button class="settings-tab" role="tab" data-settings-tab="${tab.id}">${tab.label}</button>`).join('')}
+    </div>
     <div class="sheet-scroll">
-      <section class="sheet-section">
+      <section class="settings-panel" data-settings-panel="appearance">
+        <div class="sheet-label">主题</div>
+        <div class="theme-choices" id="settings-theme">${themeButtons}</div>
+        <div class="sheet-hint">同时应用到首页和聊天页；顶栏的主题按钮也会同步。</div>
+      </section>
+      <section class="settings-panel" data-settings-panel="list">
+        <div class="sheet-label">会话列表</div>
+        <div class="display-options">
+          <label class="display-option">
+            <span class="display-option-text"><b>显示已归档会话</b><span>在首页列出已归档的会话</span></span>
+            <input type="checkbox" id="settings-archived"${state.showArchived ? ' checked' : ''}>
+          </label>
+        </div>
+        <div class="sheet-hint">与首页顶栏的归档按钮同步；隐藏后仍可从桌面端取消归档。</div>
+      </section>
+      ${supportsDisplay ? `
+      <section class="settings-panel" data-settings-panel="truncate">
         <div class="sheet-label">长内容截断</div>
         <div class="display-options">
           <label class="display-option">
             <span class="display-option-text"><b>工具输出</b><span>工具结果与调用参数</span></span>
-            <input type="checkbox" id="display-tools"${display.truncateTools ? ' checked' : ''}>
+            <input type="checkbox" id="display-tools"${draft.display.truncateTools ? ' checked' : ''}>
           </label>
           <label class="display-option">
             <span class="display-option-text"><b>Agent 回复</b><span>助手的正文内容</span></span>
-            <input type="checkbox" id="display-assistant"${display.truncateAssistant ? ' checked' : ''}>
+            <input type="checkbox" id="display-assistant"${draft.display.truncateAssistant ? ' checked' : ''}>
           </label>
           <label class="display-option">
             <span class="display-option-text"><b>思考过程</b><span>reasoning 内容</span></span>
-            <input type="checkbox" id="display-reasoning"${display.truncateReasoning ? ' checked' : ''}>
+            <input type="checkbox" id="display-reasoning"${draft.display.truncateReasoning ? ' checked' : ''}>
           </label>
         </div>
         <div class="sheet-label" style="margin-top:6px">截断长度</div>
         <div class="display-length">
-          <input class="sheet-input" id="display-limit" type="number" inputmode="numeric" min="${DISPLAY_LIMIT_MIN}" max="${DISPLAY_LIMIT_MAX}" step="500" value="${display.limit}">
+          <input class="sheet-input" id="display-limit" type="number" inputmode="numeric" min="${DISPLAY_LIMIT_MIN}" max="${DISPLAY_LIMIT_MAX}" step="500" value="${draft.display.limit}">
           <span>字符</span>
         </div>
         <div class="sheet-hint">超过上限的内容会显示截断标记，完整内容仍保存在会话里。关闭截断后长输出会完整传到手机，可能变慢。</div>
-      </section>
+      </section>` : ''}
     </div>
     <div class="modal-actions">
       <button class="btn" id="display-cancel">取消</button>
@@ -2331,36 +2388,89 @@ function openDisplaySettings() {
   });
   modal.querySelector('#display-close').addEventListener('click', close);
   modal.querySelector('#display-cancel').addEventListener('click', close);
+
+  const tabButtons = [...modal.querySelectorAll('[data-settings-tab]')];
+  const panels = [...modal.querySelectorAll('[data-settings-panel]')];
+  const selectTab = (id, persist = true) => {
+    for (const button of tabButtons) button.classList.toggle('on', button.dataset.settingsTab === id);
+    for (const panel of panels) panel.hidden = panel.dataset.settingsPanel !== id;
+    if (persist) {
+      try {
+        localStorage.setItem(SETTINGS_TAB_KEY, id);
+      } catch {
+        /* private mode */
+      }
+    }
+  };
+  for (const button of tabButtons) {
+    button.addEventListener('click', () => selectTab(button.dataset.settingsTab));
+  }
+  selectTab(initialTab, false);
+
+  const themeChoices = [...modal.querySelectorAll('[data-theme-mode]')];
+  const paintThemeChoices = () => {
+    for (const button of themeChoices) button.classList.toggle('on', button.dataset.themeMode === draft.theme);
+  };
+  for (const button of themeChoices) {
+    button.addEventListener('click', () => {
+      draft.theme = button.dataset.themeMode;
+      paintThemeChoices();
+    });
+  }
+  paintThemeChoices();
+
   modal.querySelector('#display-save').addEventListener('click', async () => {
-    const limit = Number(modal.querySelector('#display-limit').value);
-    if (!Number.isFinite(limit) || limit < DISPLAY_LIMIT_MIN || limit > DISPLAY_LIMIT_MAX) {
-      toast(`截断长度需在 ${DISPLAY_LIMIT_MIN}–${DISPLAY_LIMIT_MAX} 字符之间`);
-      return;
+    let nextDisplay;
+    if (supportsDisplay) {
+      const limit = Number(modal.querySelector('#display-limit').value);
+      if (!Number.isFinite(limit) || limit < DISPLAY_LIMIT_MIN || limit > DISPLAY_LIMIT_MAX) {
+        toast(`截断长度需在 ${DISPLAY_LIMIT_MIN}–${DISPLAY_LIMIT_MAX} 字符之间`);
+        selectTab('truncate');
+        return;
+      }
+      const button = modal.querySelector('#display-save');
+      button.disabled = true;
+      button.textContent = '保存中…';
+      try {
+        const payload = await api('/api/display', {
+          method: 'POST',
+          body: JSON.stringify({
+            truncateTools: modal.querySelector('#display-tools').checked,
+            truncateAssistant: modal.querySelector('#display-assistant').checked,
+            truncateReasoning: modal.querySelector('#display-reasoning').checked,
+            limit,
+          }),
+        });
+        nextDisplay = normalizeDisplaySettings(payload.display);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = '保存';
+        toast(error.message ?? String(error));
+        return;
+      }
     }
-    const button = modal.querySelector('#display-save');
-    button.disabled = true;
-    button.textContent = '保存中…';
-    try {
-      const payload = await api('/api/display', {
-        method: 'POST',
-        body: JSON.stringify({
-          truncateTools: modal.querySelector('#display-tools').checked,
-          truncateAssistant: modal.querySelector('#display-assistant').checked,
-          truncateReasoning: modal.querySelector('#display-reasoning').checked,
-          limit,
-        }),
-      });
-      const next = normalizeDisplaySettings(payload.display);
-      if (next !== undefined) state.display = next;
-      close();
-      toast('显示设置已保存', 'ok');
+
+    if (draft.theme !== themeMode) setThemeMode(draft.theme);
+    const showArchived = modal.querySelector('#settings-archived').checked;
+    if (showArchived !== state.showArchived) {
+      state.showArchived = showArchived;
+      try {
+        localStorage.setItem('dsh_pocket_show_archived', state.showArchived ? '1' : '0');
+      } catch {
+        /* private mode */
+      }
+      if (state.view === 'list') {
+        renderShell();
+        bindListEvents();
+        renderSessionList();
+      }
+    }
+    if (nextDisplay !== undefined) {
+      state.display = nextDisplay;
       if (state.current !== undefined) reloadChat();
-      else renderSessionList();
-    } catch (error) {
-      button.disabled = false;
-      button.textContent = '保存';
-      toast(error.message ?? String(error));
     }
+    close();
+    toast('设置已保存', 'ok');
   });
 }
 
@@ -2454,12 +2564,10 @@ async function openControlsSheet() {
         <input id="control-skill-search" class="sheet-input" placeholder="搜索技能…" autocomplete="off">
         <div class="skill-list" id="control-skills"></div>
       </section>
-      ${state.features?.displaySettings === true
-        ? `<section class="sheet-section">
-        <div class="sheet-label">手机显示</div>
-        <button class="btn" id="open-display-settings">显示与截断设置</button>
-      </section>`
-        : ''}
+      <section class="sheet-section">
+        <div class="sheet-label">手机</div>
+        <button class="btn" id="open-display-settings">设置</button>
+      </section>
     </div>
     <div class="modal-actions">
       <button class="btn" id="control-cancel">关闭</button>

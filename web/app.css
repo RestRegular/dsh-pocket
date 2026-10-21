@@ -288,22 +288,62 @@ a { color: var(--accent); text-decoration: none; }
 .empty .big { font-size: 34px; margin-bottom: 10px; opacity: .7; }
 .empty p { margin: 0; font-size: 13px; }
 
-/* 首页底部的显示设置入口 */
-.list-settings {
-  width: 100%; margin-top: 10px;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 11px 13px;
-  border-radius: 12px;
+/* 首页余额下方的设置入口 */
+.settings-entry {
+  width: 100%; margin: 0 0 12px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 13px;
+  border-radius: 14px;
   border: 1px solid var(--line-soft);
   background: var(--card);
-  color: var(--dim);
-  font: inherit; font-size: 12.5px;
+  color: var(--text);
+  font: inherit; font-size: 14px;
   cursor: pointer;
 }
-.list-settings:hover, .list-settings:active { background: var(--card-2); color: var(--text); }
-.list-settings svg { width: 16px; height: 16px; flex: none; }
+.settings-entry:hover, .settings-entry:active { background: var(--card-2); border-color: var(--line); }
+.settings-entry svg { width: 17px; height: 17px; flex: none; }
+.settings-entry svg:first-child { color: var(--accent); }
+.settings-entry svg:last-child { width: 14px; height: 14px; color: var(--faint); }
+.settings-entry span { flex: 1; min-width: 0; text-align: left; font-weight: 600; }
 
-/* 显示与截断设置 */
+/* 设置页：标签页 */
+.settings-tabs {
+  flex: none;
+  display: flex; gap: 2px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line-soft);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.settings-tab {
+  flex: none;
+  padding: 10px 12px 9px;
+  border: 0; border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--faint);
+  font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.settings-tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.settings-panel { display: flex; flex-direction: column; gap: 6px; }
+.settings-panel[hidden] { display: none; }
+.settings-sheet .sheet-scroll { min-height: 220px; }
+.theme-choices { display: flex; gap: 8px; }
+.theme-choice {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+  color: var(--dim);
+  font: inherit; font-size: 12px;
+  cursor: pointer;
+}
+.theme-choice.on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.theme-choice-icon svg { width: 18px; height: 18px; display: block; }
+
+/* 设置页：截断 */
 .display-options { display: flex; flex-direction: column; gap: 6px; }
 .display-option {
   display: flex; align-items: center; gap: 12px;
