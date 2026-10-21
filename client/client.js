@@ -130,6 +130,14 @@ if (!alreadyRegistered()) {
         displaySave: '保存显示设置',
         displayRange: '截断长度需在 500–50000 字符之间',
         displayNote: '关闭某类截断后，这类内容会完整发送到手机，可能增加流量和首屏时间。',
+        surfaceCard: '手机端界面',
+        surfaceHint: '选择手机打开时看到的界面。',
+        surfaceMobile: '轻量界面',
+        surfaceMobileDesc: 'Pocket 自带手机页 · 省流量、首屏快',
+        surfaceDesktop: '桌面直通',
+        surfaceDesktopDesc: '桌面端同一份界面 · 插件全在',
+        surfaceNote: '切换后会自动刷新本页；直通模式下手机加载的就是桌面 Web GUI。',
+        surfaceUnavailable: '桌面 Web 界面没有在运行，暂时只能使用轻量界面。',
       };
 
       const EN = {
@@ -229,6 +237,14 @@ if (!alreadyRegistered()) {
         displaySave: 'Save display settings',
         displayRange: 'Truncation length must be between 500 and 50000 characters',
         displayNote: 'When a category is not truncated, its content is sent to the phone in full and may increase traffic and first-load time.',
+        surfaceCard: 'Phone surface',
+        surfaceHint: 'Choose what the phone opens.',
+        surfaceMobile: 'Lightweight',
+        surfaceMobileDesc: 'Pocket’s own phone page · light and fast',
+        surfaceDesktop: 'Desktop passthrough',
+        surfaceDesktopDesc: 'The same desktop UI · every plugin included',
+        surfaceNote: 'This page refreshes after switching; passthrough serves the desktop Web GUI itself.',
+        surfaceUnavailable: 'The desktop Web GUI is not running, so only the lightweight page is available.',
       };
 
       const LANG = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? ZH : EN;
@@ -673,11 +689,19 @@ if (!alreadyRegistered()) {
             setStatus(next);
             if (name === 'set-display' && next?.display !== undefined) setDisplayDraft(next.display);
             setError('');
+            return next;
           } catch (failure) {
             setError(String(failure?.message ?? failure));
+            return undefined;
           } finally {
             setBusy('');
           }
+        };
+
+        const switchSurface = (mode) => {
+          void action('set-surface', { surface: mode }).then((next) => {
+            if (next?.surface === mode) window.location.reload();
+          });
         };
 
         const rotate = () => {
@@ -965,6 +989,31 @@ if (!alreadyRegistered()) {
                     onClick: saveDisplay,
                   }, busy === 'set-display' ? LANG.switching : LANG.displaySave),
                 ),
+              ),
+            ),
+            h('section', { className: 'dsh-pk-card' },
+              h('div', { className: 'dsh-pk-card-top' },
+                h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'display', size: 16 })),
+                h('div', { className: 'dsh-pk-card-heading' },
+                  h('span', { className: 'dsh-pk-card-title' }, LANG.surfaceCard),
+                  h('span', { className: 'dsh-pk-card-sub' }, LANG.surfaceHint),
+                ),
+              ),
+              h('div', { className: 'dsh-pk-field' },
+                h(Picker, {
+                  value: status.surface === 'desktop' ? 'desktop' : 'mobile',
+                  options: status.desktopAvailable === false
+                    ? [{ value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc }]
+                    : [
+                      { value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc },
+                      { value: 'desktop', label: LANG.surfaceDesktop, description: LANG.surfaceDesktopDesc },
+                    ],
+                  disabled: busy !== '',
+                  onChange: switchSurface,
+                }),
+                h('span', { className: 'dsh-pk-hint' }, status.desktopAvailable === false
+                  ? LANG.surfaceUnavailable
+                  : LANG.surfaceNote),
               ),
             ),
             h('section', { className: 'dsh-pk-card dsh-pk-connect-card' },

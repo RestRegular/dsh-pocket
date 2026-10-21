@@ -2,7 +2,8 @@
 
 把本机的 DeepSeek Harness 装进口袋：起一个独立的移动端 Web 服务，按需拉起内外网隧道；手机浏览器打开后可以查看会话、实时输出和工具调用，也能反向发送指令、停止当前回合。
 
-- **独立移动页面**：不是把桌面 GUI 硬塞进手机，而是为窄屏重写的会话列表 + 聊天流。
+- **独立移动页面**：默认不是把桌面 GUI 硬塞进手机，而是为窄屏重写的会话列表 + 聊天流；需要桌面全部插件界面时，可以在面板里切到「桌面直通」，直接把宿主 Web GUI 整页反代给手机。
+- **桌面直通（实验）**：手机加载桌面端同一份渲染代码，插件面板/设置/终端/市场全部复用；认证由 Pocket 负责换 GUI Cookie，隧道地址变化不影响使用。
 - **与桌面一致的工作区视图**：按 `workspaceController` 的工作区顺序和会话归属分组；默认隐藏已归档会话，顶部一键切换显示。
 - **会话操作菜单**：会话行右侧的「更多」可以置顶（只在所属工作区内排到最前）、重命名、归档/取消归档、复制 Session ID；归档运行中的会话会先征询并停止其工作。
 - **流式输出**：WebSocket 跟进 `sessionController.follow`，助手文本、思考过程、工具调用与结果实时出现。历史快照分批推送，手机边收边渲染。
@@ -71,6 +72,7 @@ D:\DeepseekHarnessProjects\dsh-pocket
 | `token` | 自动生成 | 固定访问令牌；留空时使用 `~/.dsh/pocket/state.json` 里持久化的令牌。 |
 | `keepAwake` | `false` | 启动后自动保持电脑不休眠；也可以随时在桌面面板或手机顶栏开关，面板上的选择优先。 |
 | `keepAwakeDisplay` | `true` | 常亮时是否同时阻止屏幕关闭；设 `false` 只阻止系统睡眠（Windows/macOS）。 |
+| `surface` | `mobile` | 手机端默认界面。`mobile` 是 Pocket 自带轻量页；`desktop` 直接把桌面 Web GUI 整页反代给手机（插件 UI 全部复用）。面板里的选择优先并持久化。 |
 
 ### 用自有服务器转发
 
@@ -141,6 +143,22 @@ sshExposePort: 80
 - 跨会话提醒：顶部浮层按会话显示仍在等待的提问/审批，点击切到该会话，右侧 `×` 忽略；当前会话的待办不会重复弹提示。首页的事件流断开时会话列表轮询也会同步这些提示。
 - 电脑常亮：顶栏闪电按钮切换宿主的「保持系统不休眠」（默认连屏幕一起保持），状态与桌面面板同步；切换结果由 Host 持久化，DSH 重启后恢复。
 
+### 桌面直通（实验）
+
+桌面端和 `dsh web` 的页面本来就是同一份渲染代码（`@deepseek-ai/dsh-web-frontend` + 宿主注入的插件 client bundle）。打开 **桌面直通** 后，Pocket 把宿主 Web GUI 整页反向代理给手机：
+
+- 手机上看到的就是桌面界面本身：插件面板、设置、终端、文件预览、插件市场全部来自同一份代码，新增插件不需要在手机端重写；
+- 认证是两层的：手机仍然先过 Pocket 令牌/Cookie，Pocket 再用进程启动令牌给自己换一张绑定回环 authority 的 GUI Cookie，反代时固定 `Host`/`Origin`，所以隧道地址怎么变都不影响；
+- 切换入口：桌面 **Pocket** 面板的「手机端界面」，或 `GET /__pocket/surface?to=desktop|mobile`；切换后页面会自动刷新。
+
+代价：
+
+- 首屏是完整的桌面 bundle（含所有插件），比轻量页大一个量级，弱网首次打开更慢；
+- 桌面布局没有针对窄屏做断点。实测 390×844 下会话页与输入框可用，但**左侧边栏展开时会把主内容挤到只剩一条**，右侧面板是全屏接管（正常）；终端、拖拽、右键菜单等桌面交互在触摸屏上体验一般；
+- Electron 专属能力（例如"在文件管理器中打开"）在浏览器里会降级。
+
+这个模式默认关闭，`surface: mobile` 时 Pocket 的行为与之前完全一致。后续如果给前端补一份窄屏样式，所有插件会一起受益。
+
 ## HTTP 接口
 
 移动服务（默认 `8790`）除 `/healthz` 外都需要令牌：
@@ -177,9 +195,12 @@ sshExposePort: 80
 | GET | `/api/sessions/:id/text?path=src/app.js` | 文本预览（最多 400 KB，`truncated` 标记）；图片返回 `image: true`，二进制返回 `binary: true`。 |
 | GET | `/api/workspace/files?root=...&path=` | 首页工作区文件树；`root` 必须是当前列表里已登记的工作区。 |
 | GET | `/api/workspace/text?root=...&path=` | 首页工作区文件预览，规则同上。 |
-| GET | `/api/workspace/file?root=...&path=` | 首页文件树里的图片预览。 |
+| GET | `/workspace/file?root=...&path=` | 首页文件树里的图片预览。 |
+| GET | `/__pocket/surface` | 当前手机端界面模式：`{ surface: "mobile" \| "desktop", desktopAvailable }`。 |
+| POST | `/__pocket/surface` | `{ "surface": "mobile" \| "desktop" }`，切换手机端界面并持久化；切直通前会先验证能换到 GUI 凭据。 |
+| GET | `/__pocket/surface?to=mobile\|desktop` | 切换后 303 回首页，供兜底页/无脚本场景使用。 |
 
-桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`restart`。
+桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`set-surface`、`restart`。
 
 模型工具 `pocket_share` 会把当前手机入口地址交给模型，方便用户直接要链接。
 
