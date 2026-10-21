@@ -145,4 +145,154 @@
   .dshwv-root {
     transform: translateY(-72px);
   }
+
+  /* ---------- phone directory picker for adding a workspace ---------- */
+  .dsh-pocket-modal-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(8, 12, 20, 0.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+
+  .dsh-pocket-modal {
+    display: flex;
+    flex-direction: column;
+    width: min(420px, 100%);
+    max-height: calc(100dvh - 36px);
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid var(--dsw-alias-border-l2, #dfe2ea);
+    background: var(--dsw-alias-bg-layer-2, #fff);
+    color: var(--dsw-alias-label-primary, #1a1d24);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+    font-size: 14px;
+  }
+
+  .dsh-pocket-modal h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+
+  .dsh-pocket-modal p {
+    margin: 0 0 12px;
+    color: var(--dsw-alias-label-caption, #8b93a3);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .dsh-pocket-path-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .dsh-pocket-up {
+    flex: none;
+    width: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--dsw-alias-border-l2, #dfe2ea);
+    background: var(--dsw-alias-bg-layer-1, #f6f7f9);
+    color: inherit;
+    font-size: 16px;
+  }
+
+  .dsh-pocket-up:disabled {
+    opacity: 0.4;
+  }
+
+  .dsh-pocket-input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 11px;
+    border-radius: 9px;
+    border: 1px solid var(--dsw-alias-border-l2, #dfe2ea);
+    background: var(--dsw-alias-bg-layer-1, #f6f7f9);
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .dsh-pocket-dir-list {
+    min-height: 120px;
+    max-height: 42vh;
+    margin-top: 10px;
+    overflow: auto;
+    border: 1px solid var(--dsw-alias-border-l1, #e6e8ee);
+    border-radius: 10px;
+    background: var(--dsw-alias-bg-layer-1, #f6f7f9);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dsh-pocket-dir {
+    display: block;
+    width: 100%;
+    padding: 11px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--dsw-alias-border-l1, #e6e8ee);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .dsh-pocket-dir:last-child {
+    border-bottom: 0;
+  }
+
+  .dsh-pocket-dir:active {
+    background: var(--dsw-alias-bg-layer-2, #fff);
+  }
+
+  .dsh-pocket-dir::before {
+    content: "📁 ";
+  }
+
+  .dsh-pocket-dir-empty {
+    padding: 16px 12px;
+    color: var(--dsw-alias-label-caption, #8b93a3);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .dsh-pocket-error {
+    margin-top: 8px;
+    color: var(--dsw-alias-state-error-primary, #e5484d);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .dsh-pocket-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .dsh-pocket-actions button {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--dsw-alias-border-l2, #dfe2ea);
+    background: var(--dsw-alias-bg-layer-1, #f6f7f9);
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .dsh-pocket-actions button.primary {
+    border-color: transparent;
+    background: var(--dsw-alias-button-primary-fill, #3b70e8);
+    color: #fff;
+  }
+
+  .dsh-pocket-actions button:disabled {
+    opacity: 0.6;
+  }
 }

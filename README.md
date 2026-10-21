@@ -151,7 +151,8 @@ sshExposePort: 80
 
 - 手机上看到的就是桌面界面本身：插件面板、设置、终端、文件预览、插件市场全部来自同一份代码，新增插件不需要在手机端重写；
 - 认证是两层的：手机仍然先过 Pocket 令牌/Cookie，Pocket 再用进程启动令牌给自己换一张绑定回环 authority 的 GUI Cookie，反代时固定 `Host`/`Origin`，所以隧道地址怎么变都不影响；
-- 窄屏适配（默认开启，可在面板「设置 → 窄屏适配」关闭）：Pocket 在直通页面的 `<head>` 里注入一份只在 ≤768px 生效的样式和一个小脚本 —— 左侧边栏改成带遮罩的抽屉（选中会话自动收起）、设置页改成全屏 + 顶部横向标签、设置页的「打开配置文件」隐藏、其它对话框限制在视口内，并把鲸鱼插件的浮窗上移，避免压住输入框的发送按钮；
+- 窄屏适配（默认开启，可在面板「设置 → 窄屏适配」关闭）：Pocket 在直通页面的 `<head>` 里注入一份只在 ≤768px 生效的样式和一个小脚本 —— 左侧边栏改成带遮罩的抽屉（只在选中会话/新建会话时自动收起，折叠工作区、打开工作区菜单不会关掉抽屉）、设置页改成全屏 + 顶部横向标签、设置页的「打开配置文件」隐藏、其它对话框限制在视口内，并把鲸鱼插件的浮窗上移，避免压住输入框的发送按钮；
+- 手机上添加工作区：桌面端的「添加工作区」会调起电脑上的原生目录对话框，手机上看不到。Pocket 会在手机上拦截这个按钮，换成自己的目录选择器（浏览电脑目录 / 直接输入路径），确认后调用宿主的 `workspaceRegistry.create()` 落库，再刷新页面显示新工作区；
 - 切换入口：手机设置 →「界面」→ 桌面直通；或桌面 **Pocket** 面板的「设置 → 手机端界面」；或 `GET /__pocket/surface?to=desktop|mobile`。
 
 代价：
@@ -202,6 +203,8 @@ Pocket 面板本身也做了窄屏适配：Tab 分为「概览 / 设置」，设
 | GET | `/__pocket/surface` | 当前手机端界面模式：`{ surface: "mobile" \| "desktop", desktopAvailable }`。 |
 | POST | `/__pocket/surface` | `{ "surface": "mobile" \| "desktop" }`，切换手机端界面并持久化；切直通前会先验证能换到 GUI 凭据。 |
 | GET | `/__pocket/surface?to=mobile\|desktop` | 切换后 303 回首页，供兜底页/无脚本场景使用。 |
+| GET | `/__pocket/fs?path=` | 手机目录选择器：列出本机某个目录的子目录（默认用户主目录；只返回目录，不读文件内容）。 |
+| POST | `/__pocket/workspace` | `{ "path": "D:\\projects\\app" }`，验证目录后调用 `workspaceRegistry.create()` 新建工作区。 |
 
 桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`，`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`set-surface`、`set-mobile-layout`、`restart`。
 
