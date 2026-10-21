@@ -622,7 +622,6 @@ function renderShell() {
         <span class="brand-mark" aria-hidden="true">${ICONS.logo}</span>
         <div>
           <div class="brand-name">Pocket</div>
-          <div class="brand-sub" id="list-sub">正在读取会话…</div>
         </div>
       </div>
       <button class="iconbtn theme-toggle" title="主题"></button>
@@ -1171,7 +1170,6 @@ function renderWorkspaceGroup(group, showPathInRows) {
 function renderSessionList() {
   const container = document.querySelector('#session-list');
   if (container === null) return;
-  const sub = document.querySelector('#list-sub');
   const filter = state.filter.toLowerCase();
   const groups = [];
   for (const workspace of state.workspaces) {
@@ -1200,16 +1198,6 @@ function renderSessionList() {
     if (archived.length > 0) {
       groups.push({ kind: 'archived', title: '已归档', path: '', sessions: archived });
     }
-  }
-
-  // 旧 Host 版本的 counts.visible 仍包含空会话；用实际分组重算，保证显示与列表一致。
-  const visibleCount = state.workspaces.reduce(
-    (sum, workspace) => sum + (workspace.sessions ?? []).filter((row) => row.blank !== true).length,
-    0,
-  ) + state.unassigned.filter((row) => row.blank !== true).length;
-  if (sub !== null) {
-    sub.textContent = `${visibleCount} 个会话 · ${state.workspaces.length} 个工作区`
-      + `${state.archived.length > 0 ? ` · ${state.archived.filter((row) => row.blank !== true).length} 个已归档` : ''}`;
   }
 
   const totalSessions = groups.reduce((sum, group) => sum + group.sessions.length, 0);

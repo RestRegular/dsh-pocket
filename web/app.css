@@ -61,7 +61,6 @@ a { color: var(--accent); text-decoration: none; }
 .brand-mark { width: 30px; height: 30px; flex: none; display: block; }
 .brand-mark svg { width: 100%; height: 100%; display: block; }
 .brand-name { font-size: 17px; font-weight: 700; letter-spacing: .2px; }
-.brand-sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
 
 .iconbtn {
   flex: none;
