@@ -34,8 +34,8 @@ if (!alreadyRegistered()) {
       const API = '/dsh-pocket';
 
       const ZH = {
-        panel: 'Pocket',
-        title: 'Pocket 随身访问',
+        panel: '随身访问',
+        title: '随身访问',
         subtitle: '把本机 DSH 装进口袋：手机查看会话与实时输出，反向发送指令。',
         server: '手机服务',
         listening: '监听中',
@@ -154,8 +154,8 @@ if (!alreadyRegistered()) {
       };
 
       const EN = {
-        panel: 'Pocket',
-        title: 'Pocket',
+        panel: 'Pocket Access',
+        title: 'Pocket Access',
         subtitle: 'Your DSH in your pocket: read sessions and live output on a phone, and send prompts back.',
         server: 'Mobile server',
         listening: 'Listening',
@@ -476,11 +476,23 @@ if (!alreadyRegistered()) {
         return Promise.resolve();
       }
 
+      /**
+       * 侧栏那一行的图标：16 网格单色线稿（fill:none、stroke:currentColor、1.3），
+       * 与宿主侧栏那一列的其它图标一致，深浅主题跟随文字色。彩色瓦片只用于
+       * 插件管理器的 icon.svg。
+       */
       function PocketIcon({ size = 16 }) {
-        return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
-          h('rect', { x: 6.5, y: 2.5, width: 11, height: 19, rx: 3, stroke: 'currentColor', strokeWidth: 1.7 }),
-          h('path', { d: 'M10 6h4', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),
-          h('circle', { cx: 12, cy: 17, r: 1.1, fill: 'currentColor' }),
+        return h('svg', { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true' },
+          h('rect', { x: 4.4, y: 1.8, width: 5.6, height: 11.2, rx: 2, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3 }),
+          h('path', { d: 'M6.3 4.4h2', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round' }),
+          h('circle', { cx: 7.2, cy: 10.8, r: 0.7, fill: 'currentColor' }),
+          h('path', {
+            d: 'M11.4 4.6c1.4 0.9 2.2 2 2.2 3.4s-0.8 2.5-2.2 3.4',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: 1.3,
+            strokeLinecap: 'round',
+          }),
         );
       }
 

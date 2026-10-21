@@ -1,14 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pocket">
+<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    随身访问图标:手机 + 信号波纹。
+
+    沿用宿主插件美术的规范:36×36 画布、内缩 4 的 28×28 圆角瓦片(rx 8);
+    不写死 width/height,显示尺寸交给消费方(插件管理器行 30 / 卡片 36)。
+    配色是 Pocket 的蓝色:瓦片 #5CA8FF → #2F5BE0,记号用近白 #F4F8FF,
+    波纹 #B9D8FF / #8CC4FF;外圈压一圈 0.9px 半透明白内边,避免深色行里
+    糊成一块蓝方块。
+
+    换图标时的护栏:必须是包内文件、SVG/PNG/JPEG/WebP、≤256 KiB
+    (宿主 readPluginMeta 的读取条件),并同步 package.json 的 icon 字段。
+  -->
+  <rect x="4" y="4" width="28" height="28" rx="8" fill="url(#pocket_tile)"/>
+  <rect x="4.45" y="4.45" width="27.1" height="27.1" rx="7.6" fill="none" stroke="rgba(255,255,255,0.20)" stroke-width="0.9"/>
+  <rect x="12.4" y="9.6" width="10" height="16.8" rx="3" stroke="#F4F8FF" stroke-width="2.1"/>
+  <path d="M16.1 12.4h3.2" stroke="#F4F8FF" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="17.4" cy="23" r="1.15" fill="#F4F8FF"/>
+  <path d="M24.4 13.4c2.4 1.3 3.9 3.5 3.9 6s-1.5 4.7-3.9 6" stroke="#B9D8FF" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M26.9 16.2c1.4 0.9 2.2 2.2 2.2 3.6s-0.8 2.7-2.2 3.6" stroke="#8CC4FF" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>
   <defs>
-    <linearGradient id="pocket-bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4f8cff"/>
-      <stop offset="1" stop-color="#2b57d8"/>
+    <linearGradient id="pocket_tile" x1="18" y1="4" x2="18" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5CA8FF"/>
+      <stop offset="1" stop-color="#2F5BE0"/>
     </linearGradient>
   </defs>
-  <rect x="3" y="3" width="58" height="58" rx="15" fill="url(#pocket-bg)"/>
-  <rect x="19" y="12" width="26" height="40" rx="7" fill="none" stroke="#ffffff" stroke-width="3.2"/>
-  <path d="M26 17.5h12" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" opacity=".85"/>
-  <circle cx="32" cy="45.5" r="2.1" fill="#ffffff" opacity=".9"/>
-  <path d="M43 18c5.4 2.7 8.7 7.7 8.7 14s-3.3 11.3-8.7 14" fill="none" stroke="#bfe0ff" stroke-width="2.4" stroke-linecap="round"/>
-  <path d="M46.4 23.2c3 2 4.8 5.3 4.8 8.8s-1.8 6.8-4.8 8.8" fill="none" stroke="#8cc4ff" stroke-width="2.2" stroke-linecap="round" opacity=".9"/>
 </svg>
