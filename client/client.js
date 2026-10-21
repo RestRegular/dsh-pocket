@@ -434,7 +434,11 @@ if (!alreadyRegistered()) {
   .dsh-pk-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .dsh-pk-sub{font-size:11.5px}
   .dsh-pk-links{min-width:0}
-  .dsh-pk-qr-card img,.dsh-pk-qr-empty{width:132px;height:132px}
+  /* 二维码组在窄屏下不要按内容宽度撑开：改成两列等宽、图随卡片缩放 */
+  .dsh-pk-connect{gap:14px}
+  .dsh-pk-qr-group{flex:1 1 100%;width:100%;min-width:0;gap:10px}
+  .dsh-pk-qr-card{flex:1 1 0;width:auto;min-width:0;max-width:178px}
+  .dsh-pk-qr-card img,.dsh-pk-qr-empty{width:100%;max-width:158px;height:auto;aspect-ratio:1}
 }
 
 [data-platform='darwin'] .dsh-pk-head{padding-top:calc(30px + var(--dsh-frame-top-clearance,0px))}
@@ -483,16 +487,9 @@ if (!alreadyRegistered()) {
        */
       function PocketIcon({ size = 16 }) {
         return h('svg', { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true' },
-          h('rect', { x: 4.4, y: 1.8, width: 5.6, height: 11.2, rx: 2, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3 }),
-          h('path', { d: 'M6.3 4.4h2', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round' }),
-          h('circle', { cx: 7.2, cy: 10.8, r: 0.7, fill: 'currentColor' }),
-          h('path', {
-            d: 'M11.4 4.6c1.4 0.9 2.2 2 2.2 3.4s-0.8 2.5-2.2 3.4',
-            fill: 'none',
-            stroke: 'currentColor',
-            strokeWidth: 1.3,
-            strokeLinecap: 'round',
-          }),
+          h('rect', { x: 5.2, y: 1.8, width: 5.6, height: 11.2, rx: 2, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3 }),
+          h('path', { d: 'M7.1 4.4h2', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round' }),
+          h('circle', { cx: 8, cy: 10.8, r: 0.7, fill: 'currentColor' }),
         );
       }
 
