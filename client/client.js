@@ -364,11 +364,13 @@ if (!alreadyRegistered()) {
 .dsh-pk-toggle-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
 .dsh-pk-toggle-label{font-size:12px;font-weight:550;color:var(--dsw-alias-label-primary)}
 .dsh-pk-toggle-desc{font-size:10.5px;color:var(--dsw-alias-label-caption)}
-.dsh-pk-switch{position:relative;flex:none;width:36px;height:20px;padding:0;border:1px solid var(--dsw-alias-border-l4);border-radius:999px;background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1));cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.dsh-pk-switch{position:relative;flex:none;width:36px;height:20px;padding:0;border:1px solid color-mix(in srgb,var(--dsw-alias-label-caption) 24%,transparent);border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-caption) 28%,transparent);cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.dsh-pk-switch:hover:not(:disabled){border-color:color-mix(in srgb,var(--dsw-alias-label-caption) 42%,transparent)}
+.dsh-pk-switch:focus-visible{outline:2px solid var(--dsw-alias-button-primary-fill);outline-offset:2px}
 .dsh-pk-switch:disabled{opacity:.5;cursor:default}
 .dsh-pk-switch.on{background:var(--dsw-alias-button-primary-fill,#3b70e8);border-color:transparent}
-.dsh-pk-switch-thumb{position:absolute;top:50%;left:2px;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-label-caption);transform:translateY(-50%);transition:left .15s ease,background .15s ease}
-.dsh-pk-switch.on .dsh-pk-switch-thumb{left:18px;background:#fff}
+.dsh-pk-switch-thumb{position:absolute;top:50%;left:2px;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-switch-thumb,#fff);box-shadow:0 1px 2px rgba(0,0,0,.28);transform:translateY(-50%);transition:left .15s ease,background .15s ease}
+.dsh-pk-switch.on .dsh-pk-switch-thumb{left:18px}
 .dsh-pk-display-limit{display:flex;align-items:center;gap:8px;margin-top:6px}
 .dsh-pk-display-limit .dsh-pk-input{flex:1;min-width:0}
 .dsh-pk-display-limit span{flex:none;font-size:11px;color:var(--dsw-alias-label-caption)}
