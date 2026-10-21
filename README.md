@@ -23,6 +23,10 @@
 >
 > **English** — A mobile companion for DeepSeek Harness. It serves a purpose-built phone UI and can reverse-proxy the full desktop GUI, with live sessions, prompts, tool approvals, file downloads, LAN/tunnel access, and one-tap keep-awake.
 
+<p align="center">
+  <img src="preview/hero.jpg" width="100%" alt="Pocket Access：手机端的会话、聊天与文件下载" />
+</p>
+
 ## 目录
 
 - [为什么是 Pocket](#为什么是-pocket)
@@ -83,21 +87,30 @@ Pocket 的核心差异是：**手机界面不是桌面界面的降级版，而�
 
 ## 界面预览
 
-<p align="center">
-  <img src="preview/mobile-list-phone.png" width="230" alt="手机会话列表与余额" />
-  <img src="preview/mobile-chat-tools.png" width="230" alt="手机聊天、思考与工具卡片" />
-  <img src="preview/mobile-session-menu.png" width="230" alt="会话操作菜单" />
-</p>
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="preview/mobile-home.png" width="250" alt="手机会话列表与余额" /><br />
+      <sub><b>会话列表</b> · 工作区分组、搜索、置顶与归档</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="preview/mobile-chat.png" width="250" alt="手机实时对话" /><br />
+      <sub><b>实时对话</b> · 流式输出、思考过程、工具卡片与 Markdown 表格</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="preview/mobile-preview.png" width="250" alt="文件预览与下载" /><br />
+      <sub><b>文件下载</b> · 预览底部、文件树每行都能直接保存到手机</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="preview/mobile-settings.png" width="250" alt="手机设置" /><br />
+      <sub><b>界面切换</b> · 轻量界面与桌面直通，按场景选择</sub>
+    </td>
+  </tr>
+</table>
 
-<p align="center"><sub>轻量界面：会话列表、实时聊天与工具卡片、会话操作菜单</sub></p>
-
-<p align="center">
-  <img src="preview/desktop-pocket-qr.png" width="720" alt="桌面 Pocket 面板" />
-</p>
-
-<p align="center"><sub>桌面 Pocket 面板：状态概览、公网入口、局域网地址与双二维码</sub></p>
-
-> 截图中的访问令牌已经轮换失效，余额为演示数据。实际令牌以你本机面板显示的二维码为准。
+> 截图使用演示会话、演示余额与演示地址；二维码和令牌均为示例，真实值以你本机面板显示为准。
 
 ## 快速开始
 
@@ -231,6 +244,12 @@ sshExposePort: 80
 - **连接**：公网入口在 **Cloudflared（默认）** 与 **自有服务器** 之间切换；局域网 IP 用自定义下拉选择；二维码和分享链接优先使用选中的地址，选择持久化。
 - **设置**：只显示当前界面模式相关的设置——轻量界面显示「显示与截断」，桌面直通显示「窄屏适配」，两类设置不混在一起。
 - **操作**：打开手机页面、复制地址、轮换令牌、保持电脑常亮、重启隧道。
+
+<p align="center">
+  <img src="preview/panel.jpg" width="100%" alt="桌面 Pocket 面板" />
+</p>
+
+<p align="center"><sub>状态概览、公网入口、局域网 IP、双二维码与安全设置集中在一处</sub></p>
 
 ## 安全模型
 
