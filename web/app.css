@@ -359,6 +359,19 @@ a { color: var(--accent); text-decoration: none; }
   flex: none; width: 20px; height: 20px; margin: 0;
   accent-color: var(--accent);
 }
+.display-option.static { cursor: default; }
+.surface-current {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+.surface-switch { flex: none; }
+.btn.surface-switch { flex: none; padding: 7px 14px; font-size: 12px; }
 .display-length { display: flex; align-items: center; gap: 8px; }
 .display-length .sheet-input { flex: 1; min-width: 0; }
 .display-length span { flex: none; font-size: 12px; color: var(--faint); }

@@ -2292,20 +2292,26 @@ function updateDisplaySettingsEntry() {
   button.style.display = 'flex';
 }
 
-/** 设置页的标签页；顺序与文案固定，未知值回退到截断。 */
+/** 设置页的标签页；顺序与文案固定，未知值回退到外观。 */
 const SETTINGS_TABS = [
   { id: 'appearance', label: '外观' },
   { id: 'list', label: '列表' },
   { id: 'truncate', label: '截断' },
+  { id: 'surface', label: '界面' },
 ];
 const SETTINGS_TAB_KEY = 'dsh_pocket_settings_tab';
 
 /**
- * 打开手机端设置。外观/列表只影响本机页面，截断设置与桌面 Pocket 面板共用。
+ * 打开手机端设置。外观/列表只影响本机页面，截断设置与桌面 Pocket 面板共用，
+ * 「界面」可以切到桌面直通（需要 Host 0.12+）。
  */
 function openDisplaySettings() {
   const supportsDisplay = state.features?.displaySettings === true;
-  const tabs = SETTINGS_TABS.filter((tab) => tab.id !== 'truncate' || supportsDisplay);
+  const supportsSurface = state.features?.desktopSurface === true;
+  const tabs = SETTINGS_TABS.filter((tab) => (
+    (tab.id !== 'truncate' || supportsDisplay)
+    && (tab.id !== 'surface' || supportsSurface)
+  ));
   const draft = {
     display: { ...state.display },
     theme: themeMode,
@@ -2374,6 +2380,21 @@ function openDisplaySettings() {
         </div>
         <div class="sheet-hint">超过上限的内容会显示截断标记，完整内容仍保存在会话里。关闭截断后长输出会完整传到手机，可能变慢。</div>
       </section>` : ''}
+      ${supportsSurface ? `
+      <section class="settings-panel" data-settings-panel="surface">
+        <div class="sheet-label">手机界面</div>
+        <div class="display-options">
+          <div class="display-option static">
+            <span class="display-option-text"><b>轻量界面</b><span>Pocket 自带手机页 · 省流量、首屏快</span></span>
+            <span class="surface-current">当前</span>
+          </div>
+          <div class="display-option static">
+            <span class="display-option-text"><b>桌面直通</b><span>桌面端同一份界面 · 插件全在</span></span>
+            <button class="btn primary surface-switch" id="surface-switch">切换</button>
+          </div>
+        </div>
+        <div class="sheet-hint" id="surface-hint">桌面直通会加载完整的桌面界面（含所有插件），首屏更大；窄屏下侧栏会变成抽屉。切换后本页会自动刷新，可在直通界面的 Pocket 面板切回轻量界面。</div>
+      </section>` : ''}
     </div>
     <div class="modal-actions">
       <button class="btn" id="display-cancel">取消</button>
@@ -2405,6 +2426,49 @@ function openDisplaySettings() {
     button.addEventListener('click', () => selectTab(button.dataset.settingsTab));
   }
   selectTab(initialTab, false);
+
+  // 「界面」页：切到桌面直通前先确认 Host 真的能直通（有 Web GUI 在跑）。
+  const surfaceButton = modal.querySelector('#surface-switch');
+  const surfaceHint = modal.querySelector('#surface-hint');
+  if (surfaceButton !== null) {
+    let surfaceReady = false;
+    const loadSurface = async () => {
+      if (surfaceReady) return;
+      surfaceReady = true;
+      try {
+        const info = await api('/__pocket/surface');
+        if (info.surface === 'desktop') {
+          surfaceButton.disabled = true;
+          surfaceButton.textContent = '当前';
+          surfaceHint.textContent = '当前已经是桌面直通。';
+        } else if (info.desktopAvailable !== true) {
+          surfaceButton.disabled = true;
+          surfaceButton.textContent = '不可用';
+          surfaceHint.textContent = '桌面 Web 界面没有在运行，暂时无法直通；请先在电脑上打开 DSH。';
+        }
+      } catch (error) {
+        surfaceButton.disabled = true;
+        surfaceButton.textContent = '不可用';
+        surfaceHint.textContent = String(error?.message ?? error);
+      }
+    };
+    void loadSurface();
+    surfaceButton.addEventListener('click', async () => {
+      surfaceButton.disabled = true;
+      surfaceButton.textContent = '切换中…';
+      try {
+        await api('/__pocket/surface', {
+          method: 'POST',
+          body: JSON.stringify({ surface: 'desktop' }),
+        });
+        window.location.replace('/');
+      } catch (error) {
+        surfaceButton.disabled = false;
+        surfaceButton.textContent = '切换';
+        toast(error.message ?? String(error));
+      }
+    });
+  }
 
   const themeChoices = [...modal.querySelectorAll('[data-theme-mode]')];
   const paintThemeChoices = () => {
