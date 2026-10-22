@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/node-%3E%3D22.13-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js >= 22.13" />
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@restregular/dsh-pocket?style=flat-square" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/DeepSeek%20Harness-plugin-4f8cff?style=flat-square" alt="DeepSeek Harness plugin" />
+  <a href="https://dsh-plugin.org/plugins/restregular/dsh-pocket"><img src="https://dsh-plugin.org/badges/listed.svg" alt="Listed on dsh-plugin.org" /></a>
 </p>
 
 </div>
