@@ -122,7 +122,13 @@ Pocket 的核心差异是：**手机界面不是桌面界面的降级版，而�
 
 ## 安装
 
-从 npm 安装（Plugin Manager →「安装 Bundle」，或调用 `plugin_manager` 的 `install_bundle`）：
+一条命令从 npm 安装（Web profile）：
+
+```bash
+dsh plugin --profile web add @restregular/dsh-pocket
+```
+
+也可以在 Plugin Manager →「安装 Bundle」里安装（或调用 `plugin_manager` 的 `install_bundle`），包名：
 
 ```text
 @restregular/dsh-pocket
