@@ -1,6 +1,6 @@
 {
   "name": "@restregular/dsh-pocket",
-  "version": "0.15.2",
+  "version": "0.15.3",
   "description": "Pocket Access — a mobile companion for DeepSeek Harness: live sessions, tool approvals, file downloads, LAN/tunnel access, and one-tap keep-awake. · 把本机 DeepSeek Harness 装进口袋：手机查看会话与流式输出、反向发送指令、处理提问与审批、下载文件，并一键保持电脑常亮。",
   "type": "module",
   "main": "lib/index.js",

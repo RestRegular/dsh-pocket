@@ -194,6 +194,8 @@ sshExposePort: 80
 
 要求：`sshExposePort` 在服务器防火墙和云安全组中放行。
 
+> `sshRemotePort` 只在服务器回环上使用，不对外暴露。如果服务器上还留着上一条 SSH 会话没释放的半开连接（本机崩溃、休眠或换网络后很常见），`sshd` 会报 `remote port forwarding failed for listen port 8790`；插件会先等 1 秒用原端口重试，仍冲突就自动换一个 20000–60000 的随机回环端口，不必手动清理服务器，面板日志里会注明「被占用，改用 …」。只有连随机端口也失败时才会报错。
+
 > 直接监听公网 80 时是 **HTTP**，令牌和会话内容会以明文经过网络。生产使用建议让 `sshExposeHost: 127.0.0.1`，在服务器上用 Nginx/Caddy 做 HTTPS 反代，并把 `sshPublicUrl` 指到 HTTPS 地址。
 
 状态文件保存访问令牌、创建时间、面板选中的局域网 IP、公网入口和「保持电脑常亮」开关：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
@@ -283,7 +285,7 @@ sshExposePort: 80
 | `sshUser` | `root` | SSH 用户名；请使用免密公钥登录。 |
 | `sshPort` | `22` | SSH 端口。 |
 | `sshKeyPath` | 无 | SSH 私钥路径；支持 `~/...`。 |
-| `sshRemotePort` | `8790` | SSH 在服务器 `127.0.0.1` 上绑定的反向转发端口。 |
+| `sshRemotePort` | `8790` | SSH 在服务器 `127.0.0.1` 上绑定的反向转发端口；被旧会话占用时会在原端口重试并自动改用随机回环端口。 |
 | `sshExposePort` | `80` | 服务器上 Node TCP 代理监听的公网端口；需在防火墙/安全组放行。 |
 | `sshExposeHost` | `0.0.0.0` | 服务器 TCP 代理绑定地址；若用 Nginx/Caddy 反代可设为 `127.0.0.1`。 |
 | `sshPublicUrl` | 无 | 自有域名/HTTPS 入口；设置后二维码使用它，而不是 `http://<sshHost>:<sshExposePort>`。 |
