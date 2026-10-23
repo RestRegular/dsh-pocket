@@ -151,6 +151,15 @@ if (!alreadyRegistered()) {
         narrowNote: '修改后刷新手机上的页面生效；关闭后恢复桌面原始布局。',
         settingsFootnote: '切换界面模式后，手机上的页面需要刷新一次。',
         surfaceSwitched: '已切换界面模式，手机上的页面刷新后生效。',
+        restartCard: '重启 DSH',
+        restartHint: '重新启动整个桌面应用，加载最新插件与配置。',
+        restartDesc: '重启会中断正在运行的任务；窗口关闭后会自动重新打开，手机端连接也会随之恢复。',
+        restartButton: '重启 DSH',
+        restarting: '正在重启…',
+        restartConfirm: '重启 DSH 会中断正在运行的任务，并关闭当前窗口。确定继续吗？',
+        restartUnavailable: '当前运行方式不支持重启',
+        restartReady: '可用',
+        restartStarted: '正在重启 DSH，窗口稍后自动重新打开…',
       };
 
       const EN = {
@@ -271,6 +280,15 @@ if (!alreadyRegistered()) {
         narrowNote: 'Refresh the page on your phone to apply; turn off to restore the original desktop layout.',
         settingsFootnote: 'Refresh the page on your phone after switching surfaces.',
         surfaceSwitched: 'Surface changed; refresh the page on your phone to apply.',
+        restartCard: 'Restart DSH',
+        restartHint: 'Restart the whole desktop app to load the latest plugins and config.',
+        restartDesc: 'Running tasks will be interrupted. The window reopens automatically, and the phone connection recovers with it.',
+        restartButton: 'Restart DSH',
+        restarting: 'Restarting…',
+        restartConfirm: 'Restarting DSH interrupts running tasks and closes this window. Continue?',
+        restartUnavailable: 'Restart is not available in this run mode',
+        restartReady: 'Available',
+        restartStarted: 'Restarting DSH; the window will reopen shortly…',
       };
 
       const LANG = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? ZH : EN;
@@ -523,6 +541,10 @@ if (!alreadyRegistered()) {
           'M9 20h6',
           'M12 16.5V20',
         ],
+        restart: [
+          'M12 3.5v8',
+          'M7.2 6.3a7 7 0 1 0 9.6 0',
+        ],
       };
 
       function LineIcon({ name, size = 16, className }) {
@@ -768,6 +790,12 @@ if (!alreadyRegistered()) {
           void action('rotate-token');
         };
 
+        const restartDsh = () => {
+          if (!window.confirm(LANG.restartConfirm)) return;
+          setToast(LANG.restartStarted);
+          void action('restart-dsh');
+        };
+
         const switchProvider = () => {
           if (provider === 'ssh' && sshHost.trim().length === 0) {
             setError(LANG.serverRequired);
@@ -859,6 +887,10 @@ if (!alreadyRegistered()) {
 
         const surfaceValue = status.surface === 'desktop' ? 'desktop' : 'mobile';
         const mobileLayoutOn = status.mobileLayout !== false;
+        const restartSupported = status.restart?.supported !== false;
+        const restartReason = typeof status.restart?.reason === 'string' && status.restart.reason.length > 0
+          ? status.restart.reason
+          : LANG.restartUnavailable;
         const surfaceOptions = status.desktopAvailable === false
           ? [{ value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc }]
           : [
@@ -1128,6 +1160,27 @@ if (!alreadyRegistered()) {
           ),
         );
 
+        const restartCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'restart', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.restartCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.restartHint),
+            ),
+            h(StatusPill, { tone: restartSupported ? 'on' : '', label: restartSupported ? LANG.restartReady : LANG.restartUnavailable }),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h('span', { className: 'dsh-pk-hint' }, restartSupported ? LANG.restartDesc : restartReason),
+          ),
+          h('div', { className: 'dsh-pk-actions' },
+            h('button', {
+              className: 'dsh-pk-btn danger',
+              disabled: busy !== '' || !restartSupported,
+              onClick: restartDsh,
+            }, busy === 'restart-dsh' ? LANG.restarting : LANG.restartButton),
+          ),
+        );
+
         return h('div', { className: 'dsh-pk' },
           h('div', { className: 'dsh-pk-head' },
             h('div', { className: 'dsh-pk-head-row' },
@@ -1138,6 +1191,10 @@ if (!alreadyRegistered()) {
               ),
               h('div', { className: 'dsh-pk-head-actions' },
                 h(StatusPill, { tone, label: tunnelLabel(tunnel) }),
+                restartSupported
+                  ? h('button', { className: 'dsh-pk-btn danger', disabled: busy !== '', onClick: restartDsh },
+                    busy === 'restart-dsh' ? LANG.restarting : LANG.restartButton)
+                  : null,
                 h('button', { className: 'dsh-pk-btn', onClick: () => void refresh() }, LANG.refresh),
               ),
             ),
@@ -1165,6 +1222,7 @@ if (!alreadyRegistered()) {
               : h(React.Fragment, null,
                 surfaceCard,
                 surfaceValue === 'mobile' ? displayCard : narrowCard,
+                restartCard,
                 h('div', { className: 'dsh-pk-settings-note' },
                   surfaceValue === 'mobile'
                     ? `${LANG.settingsScope} ${LANG.settingsFootnote}`

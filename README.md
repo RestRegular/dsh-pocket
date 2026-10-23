@@ -22,7 +22,7 @@
 
 > **Pocket Access** 是 DeepSeek Harness 的移动端伴侣插件。插件列表与侧栏的显示名为 **随身访问**；包名为 `@restregular/dsh-pocket`。
 >
-> **English** — A mobile companion for DeepSeek Harness. It serves a purpose-built phone UI and can reverse-proxy the full desktop GUI, with live sessions, prompts, tool approvals, file downloads, LAN/tunnel access, and one-tap keep-awake.
+> **English** — A mobile companion for DeepSeek Harness. It serves a purpose-built phone UI and can reverse-proxy the full desktop GUI, with live sessions, prompts, tool approvals, file downloads, LAN/tunnel access, one-tap keep-awake, and one-tap restart of DSH.
 
 <p align="center">
   <img src="preview/hero.jpg" width="100%" alt="Pocket Access：手机端的会话、聊天与文件下载" />
@@ -55,7 +55,7 @@ DeepSeek Harness 的 Web GUI 为桌面设计。Pocket 不要求你在手机上�
 - **两种界面，同一套能力。** 默认的轻量页为窄屏重写会话流与输入流程，首屏小、打开快；需要终端、插件市场、文件预览或任何第三方插件面板时，一键切到「桌面直通」，手机加载的就是桌面端同一份渲染代码。
 - **不只是看，而是接管。** 发送提示词、停止回合、切换模型与思考等级、选择权限预设、处理阻塞式提问和工具审批，全部可以在手机上完成；手机离线时自动回落到桌面。
 - **为真实网络设计。** 局域网直连、Cloudflare Quick Tunnel、localtunnel、localhost.run、自有服务器 SSH 反向转发，或自定义命令；桌面面板生成带令牌的二维码，扫一下就进入。
-- **手机端细节不是事后补的。** 发图前本地压缩、工作区文件直接下载到手机、跨会话提问提醒、跟随系统主题、主屏幕图标、保持电脑常亮——都按移动端使用习惯处理。
+- **手机端细节不是事后补的。** 发图前本地压缩、工作区文件直接下载到手机、跨会话提问提醒、跟随系统主题、主屏幕图标、保持电脑常亮、一键重启 DSH——都按移动端使用习惯处理。
 - **边界清晰的安全模型。** 128 位随机令牌；桌面面板只接受回环请求；文件读取限制在会话 cwd 或已登记工作区；GUI Cookie 留在 Pocket 内部，不交给手机。
 - **轻量、无构建。** 移动页面是原生 ESM，唯一的运行时依赖是 `ws`；二维码编码器随包内嵌，不需要前端构建链。
 
@@ -69,7 +69,7 @@ DeepSeek Harness 的 Web GUI 为桌面设计。Pocket 不要求你在手机上�
 | 人机交互 | 阻塞式提问直接作答、工具审批「允许一次 / 拒绝」、跨会话提醒、手机回答后撤回桌面弹窗 |
 | 文件与媒体 | 工作区文件树、文本/图片预览、`@路径` 引用、文件下载到手机、最多 4 张图片消息与本地压缩 |
 | 外观与体验 | 跟随系统 / 浅色 / 深色、历史截断设置、回到底部、PWA 主屏幕图标 |
-| 宿主能力 | 账户余额、保持电脑常亮、桌面 Pocket 面板、扫码连接、令牌轮换 |
+| 宿主能力 | 账户余额、保持电脑常亮、一键重启 DSH、桌面 Pocket 面板、扫码连接、令牌轮换 |
 | 远程访问 | 局域网、Cloudflare、localtunnel、localhost.run、自有服务器 SSH、自定义隧道、固定 `publicUrl` |
 
 ## 两种界面，按场景选择
@@ -252,7 +252,8 @@ sshExposePort: 80
 - **概览**：手机服务 / 公网通道状态、手机连接二维码、访问地址、安全提示。
 - **连接**：公网入口在 **Cloudflared（默认）** 与 **自有服务器** 之间切换；局域网 IP 用自定义下拉选择；二维码和分享链接优先使用选中的地址，选择持久化。
 - **设置**：只显示当前界面模式相关的设置——轻量界面显示「显示与截断」，桌面直通显示「窄屏适配」，两类设置不混在一起。
-- **操作**：打开手机页面、复制地址、轮换令牌、保持电脑常亮、重启隧道。
+- **操作**：打开手机页面、复制地址、轮换令牌、保持电脑常亮、重启隧道、一键重启 DSH。
+- **一键重启 DSH**：桌面面板顶栏与「设置 → 重启 DSH」、手机顶栏电源按钮与「设置 → 应用」都提供入口；确认后会结束当前桌面进程并在几秒后重新拉起，用来加载最新插件/配置。重启会中断正在运行的任务；手机经公网 Quick Tunnel 访问时，重启后的地址可能变化，局域网地址不受影响。`dsh web` 这类命令行运行方式不支持从 Pocket 重启，界面会自动隐藏入口。
 
 <p align="center">
   <img src="preview/panel.jpg" width="100%" alt="桌面 Pocket 面板" />
@@ -311,6 +312,7 @@ sshExposePort: 80
 | GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组和 `pending`（等待回答的提问/审批摘要）。 |
 | POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
 | POST | `/api/keep-awake` | `{ "enabled": true \| false }`，打开/关闭宿主的「保持电脑常亮」，返回最新 `awake` 状态。 |
+| POST | `/api/restart` | 一键重启整个桌面 DSH；响应先返回 `{ "ok": true, "restarting": true }`，随后进程重启。仅 Electron 桌面版可用，`dsh web` 返回 500 与原因。 |
 | GET | `/api/sessions/:id` | 标题、目录、运行状态。 |
 | POST | `/api/sessions/:id/pin` | `{ "pinned": true \| false }`，置顶/取消置顶。 |
 | POST | `/api/sessions/:id/archive` | `{ "stopActivity": true }` 可先停止仍在跑的工作；被拒绝时返回 409 与 `code: "workspace/session-active"`。 |
@@ -346,7 +348,7 @@ sshExposePort: 80
 
 </details>
 
-桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`；`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`set-surface`、`set-mobile-layout`、`restart`。
+桌面面板路由只接受回环请求：`GET /dsh-pocket?op=status`；`POST /dsh-pocket` 支持 `tunnel-start`、`tunnel-stop`、`tunnel-restart`、`switch-tunnel`、`rotate-token`、`set-lan`、`keep-awake`、`set-display`、`set-surface`、`set-mobile-layout`、`restart`（只重启 Pocket 移动服务）、`restart-dsh`（重启整个 DSH）。
 
 模型工具 `pocket_share` 会把当前手机入口地址交给模型，方便用户直接要链接。
 

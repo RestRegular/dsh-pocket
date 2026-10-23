@@ -222,6 +222,7 @@ const ICONS = {
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="7" cy="17" r="2"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5 5 13.5h6.2L11 21.5l8-11h-6.2z"/></svg>',
+  power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2v8.4"/><path d="M7 6.2a7 7 0 1 0 10 0"/></svg>',
   wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H18a1 1 0 0 1 1 1v2"/><rect x="3.5" y="8" width="17" height="11.5" rx="3"/><path d="M20.5 12H16a2 2 0 0 0 0 4h4.5"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
@@ -628,6 +629,7 @@ function renderShell() {
       <button class="iconbtn theme-toggle" title="主题"></button>
       <button class="iconbtn${state.showArchived ? ' active' : ''}" id="archived-toggle" title="${state.showArchived ? '隐藏已归档会话' : '显示已归档会话'}" aria-label="已归档">${ICONS.archive}</button>
       <button class="iconbtn" id="awake-toggle" title="电脑常亮" aria-label="保持电脑常亮" aria-pressed="false">${ICONS.bolt}</button>
+      ${state.features?.restart === true ? `<button class="iconbtn" id="restart-dsh" title="重启 DSH" aria-label="重启 DSH">${ICONS.power}</button>` : ''}
       <button class="iconbtn" id="refresh" title="刷新">${ICONS.refresh}</button>
     </header>
     <div class="list-scroll" id="list-scroll">
@@ -723,6 +725,7 @@ function bindListEvents() {
     });
   }
   document.querySelector('#awake-toggle')?.addEventListener('click', () => void toggleAwake());
+  document.querySelector('#restart-dsh')?.addEventListener('click', () => confirmRestartDsh());
   updateAwakeButton();
   renderBalance();
 }
@@ -766,6 +769,96 @@ async function toggleAwake() {
   } finally {
     const node = document.querySelector('#awake-toggle');
     if (node !== null) node.disabled = state.awake?.supported === false;
+  }
+}
+
+/**
+ * 一键重启 DSH：确认后调用 Host 的重启接口，然后等待服务重新上线。
+ */
+function confirmRestartDsh() {
+  if (state.features?.restart !== true) {
+    toast('当前 Host 不支持从 Pocket 重启 DSH');
+    return;
+  }
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal');
+  modal.innerHTML = `
+    <h3>重启 DSH？</h3>
+    <p>重启会中断正在运行的任务；桌面应用会在几秒后自动重新打开。</p>
+    <div class="modal-actions">
+      <button class="btn" id="restart-cancel">取消</button>
+      <button class="btn danger" id="restart-ok">重启 DSH</button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  modal.querySelector('#restart-cancel').addEventListener('click', close);
+  modal.querySelector('#restart-ok').addEventListener('click', () => {
+    close();
+    void restartDsh();
+  });
+}
+
+/** 发送重启请求并显示等待遮罩。 */
+async function restartDsh() {
+  showRestartOverlay();
+  try {
+    await api('/api/restart', { method: 'POST', body: '{}' });
+  } catch (error) {
+    document.querySelector('.restart-overlay')?.remove();
+    toast(error.message ?? '重启失败');
+    return;
+  }
+  void watchRestart();
+}
+
+/** 全屏的“正在重启”遮罩；服务恢复后页面自动刷新。 */
+function showRestartOverlay() {
+  document.querySelector('.restart-overlay')?.remove();
+  const overlay = el('div', 'restart-overlay');
+  const card = el('div', 'restart-card');
+  card.append(
+    el('div', 'restart-spinner'),
+    el('h3', '', 'DSH 正在重启…'),
+    el('p', '', '桌面应用会关闭并自动重新打开，服务恢复后本页会自动刷新。'),
+  );
+  const manual = el('button', 'btn primary', '立即刷新');
+  manual.hidden = true;
+  manual.addEventListener('click', () => window.location.reload());
+  card.appendChild(manual);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+/** 轮询 /healthz，等服务回来。 */
+async function watchRestart() {
+  const started = Date.now();
+  while (document.querySelector('.restart-overlay') !== null) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1500);
+    });
+    try {
+      const response = await fetch('/healthz', { cache: 'no-store' });
+      if (response.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      /* 服务还没回来 */
+    }
+    const elapsed = Date.now() - started;
+    if (elapsed > 20_000) {
+      const hint = document.querySelector('.restart-overlay p');
+      if (hint !== null) {
+        hint.textContent = '还没恢复。如果公网地址已变化，请用新地址重新打开 Pocket；也可以点击下方按钮重试。';
+      }
+      const manual = document.querySelector('.restart-overlay .btn');
+      if (manual !== null) manual.hidden = false;
+    }
+    if (elapsed > 90_000) return;
   }
 }
 
@@ -2338,6 +2431,7 @@ const SETTINGS_TABS = [
   { id: 'list', label: '列表' },
   { id: 'truncate', label: '截断' },
   { id: 'surface', label: '界面' },
+  { id: 'app', label: '应用' },
 ];
 const SETTINGS_TAB_KEY = 'dsh_pocket_settings_tab';
 
@@ -2348,9 +2442,11 @@ const SETTINGS_TAB_KEY = 'dsh_pocket_settings_tab';
 function openDisplaySettings() {
   const supportsDisplay = state.features?.displaySettings === true;
   const supportsSurface = state.features?.desktopSurface === true;
+  const supportsRestart = state.features?.restart === true;
   const tabs = SETTINGS_TABS.filter((tab) => (
     (tab.id !== 'truncate' || supportsDisplay)
     && (tab.id !== 'surface' || supportsSurface)
+    && (tab.id !== 'app' || supportsRestart)
   ));
   const draft = {
     display: { ...state.display },
@@ -2435,6 +2531,17 @@ function openDisplaySettings() {
         </div>
         <div class="sheet-hint" id="surface-hint">桌面直通会加载完整的桌面界面（含所有插件），首屏更大；窄屏下侧栏会变成抽屉。切换后本页会自动刷新，可在直通界面的 Pocket 面板切回轻量界面。</div>
       </section>` : ''}
+      ${supportsRestart ? `
+      <section class="settings-panel" data-settings-panel="app">
+        <div class="sheet-label">DSH 应用</div>
+        <div class="display-options">
+          <div class="display-option static">
+            <span class="display-option-text"><b>重启 DSH</b><span>重新启动桌面应用，加载最新插件与配置</span></span>
+            <button class="btn danger" id="restart-dsh-settings">重启</button>
+          </div>
+        </div>
+        <div class="sheet-hint">重启会中断正在运行的任务；桌面应用会自动重新打开。手机端通过公网隧道访问时，重启后的地址可能会变化。</div>
+      </section>` : ''}
     </div>
     <div class="modal-actions">
       <button class="btn" id="display-cancel">取消</button>
@@ -2448,6 +2555,10 @@ function openDisplaySettings() {
   });
   modal.querySelector('#display-close').addEventListener('click', close);
   modal.querySelector('#display-cancel').addEventListener('click', close);
+  modal.querySelector('#restart-dsh-settings')?.addEventListener('click', () => {
+    close();
+    confirmRestartDsh();
+  });
 
   const tabButtons = [...modal.querySelectorAll('[data-settings-tab]')];
   const panels = [...modal.querySelectorAll('[data-settings-panel]')];
