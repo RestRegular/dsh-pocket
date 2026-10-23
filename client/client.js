@@ -160,6 +160,11 @@ if (!alreadyRegistered()) {
         restartUnavailable: '当前运行方式不支持重启',
         restartReady: '可用',
         restartStarted: '正在重启 DSH，窗口稍后自动重新打开…',
+        shutdownDesc: '关闭会结束桌面应用与手机端连接，之后需要手动重新打开 DSH。',
+        shutdownButton: '关闭 DSH',
+        shuttingDown: '正在关闭…',
+        shutdownConfirm: '关闭 DSH 会结束整个桌面应用与手机端连接，之后需要手动重新打开。确定继续吗？',
+        shutdownStarted: '正在关闭 DSH，请稍候…',
       };
 
       const EN = {
@@ -289,6 +294,11 @@ if (!alreadyRegistered()) {
         restartUnavailable: 'Restart is not available in this run mode',
         restartReady: 'Available',
         restartStarted: 'Restarting DSH; the window will reopen shortly…',
+        shutdownDesc: 'Shutting down ends the desktop app and the phone connection; you will need to reopen DSH manually.',
+        shutdownButton: 'Shut down DSH',
+        shuttingDown: 'Shutting down…',
+        shutdownConfirm: 'Shutting down DSH ends the desktop app and the phone connection; you will need to reopen it manually. Continue?',
+        shutdownStarted: 'Shutting down DSH, please wait…',
       };
 
       const LANG = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? ZH : EN;
@@ -790,10 +800,24 @@ if (!alreadyRegistered()) {
           void action('rotate-token');
         };
 
+        // 先让提示显示完（约 1.5 秒）再发请求，避免窗口/服务立刻消失看不清提示。
+        const POWER_DELAY_MS = 1500;
+        const powerAction = (name, message) => {
+          setToast(message);
+          setBusy(name);
+          window.setTimeout(() => {
+            void action(name);
+          }, POWER_DELAY_MS);
+        };
+
         const restartDsh = () => {
           if (!window.confirm(LANG.restartConfirm)) return;
-          setToast(LANG.restartStarted);
-          void action('restart-dsh');
+          powerAction('restart-dsh', LANG.restartStarted);
+        };
+
+        const shutdownDsh = () => {
+          if (!window.confirm(LANG.shutdownConfirm)) return;
+          powerAction('shutdown-dsh', LANG.shutdownStarted);
         };
 
         const switchProvider = () => {
@@ -891,6 +915,7 @@ if (!alreadyRegistered()) {
         const restartReason = typeof status.restart?.reason === 'string' && status.restart.reason.length > 0
           ? status.restart.reason
           : LANG.restartUnavailable;
+        const shutdownSupported = status.shutdown?.supported === true;
         const surfaceOptions = status.desktopAvailable === false
           ? [{ value: 'mobile', label: LANG.surfaceMobile, description: LANG.surfaceMobileDesc }]
           : [
@@ -1171,6 +1196,7 @@ if (!alreadyRegistered()) {
           ),
           h('div', { className: 'dsh-pk-field' },
             h('span', { className: 'dsh-pk-hint' }, restartSupported ? LANG.restartDesc : restartReason),
+            shutdownSupported ? h('span', { className: 'dsh-pk-hint' }, LANG.shutdownDesc) : null,
           ),
           h('div', { className: 'dsh-pk-actions' },
             h('button', {
@@ -1178,6 +1204,13 @@ if (!alreadyRegistered()) {
               disabled: busy !== '' || !restartSupported,
               onClick: restartDsh,
             }, busy === 'restart-dsh' ? LANG.restarting : LANG.restartButton),
+            shutdownSupported
+              ? h('button', {
+                className: 'dsh-pk-btn danger',
+                disabled: busy !== '',
+                onClick: shutdownDsh,
+              }, busy === 'shutdown-dsh' ? LANG.shuttingDown : LANG.shutdownButton)
+              : null,
           ),
         );
 
@@ -1194,6 +1227,10 @@ if (!alreadyRegistered()) {
                 restartSupported
                   ? h('button', { className: 'dsh-pk-btn danger', disabled: busy !== '', onClick: restartDsh },
                     busy === 'restart-dsh' ? LANG.restarting : LANG.restartButton)
+                  : null,
+                shutdownSupported
+                  ? h('button', { className: 'dsh-pk-btn danger', disabled: busy !== '', onClick: shutdownDsh },
+                    busy === 'shutdown-dsh' ? LANG.shuttingDown : LANG.shutdownButton)
                   : null,
                 h('button', { className: 'dsh-pk-btn', onClick: () => void refresh() }, LANG.refresh),
               ),

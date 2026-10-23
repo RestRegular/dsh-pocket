@@ -5,4 +5,5 @@ node_modules/
 Thumbs.db
 .tmp/
 .dsh-ops/
+.dsh/
 .git-credential.ps1

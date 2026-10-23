@@ -223,6 +223,7 @@ const ICONS = {
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5 5 13.5h6.2L11 21.5l8-11h-6.2z"/></svg>',
   power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2v8.4"/><path d="M7 6.2a7 7 0 1 0 10 0"/></svg>',
+  powerOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8v7.4"/><path d="M7.4 5.8a6.4 6.4 0 1 0 9.2 0"/><path d="M4.5 21h15"/></svg>',
   wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H18a1 1 0 0 1 1 1v2"/><rect x="3.5" y="8" width="17" height="11.5" rx="3"/><path d="M20.5 12H16a2 2 0 0 0 0 4h4.5"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.7"/><path d="M12 17.2h.01"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
@@ -630,6 +631,7 @@ function renderShell() {
       <button class="iconbtn${state.showArchived ? ' active' : ''}" id="archived-toggle" title="${state.showArchived ? '隐藏已归档会话' : '显示已归档会话'}" aria-label="已归档">${ICONS.archive}</button>
       <button class="iconbtn" id="awake-toggle" title="电脑常亮" aria-label="保持电脑常亮" aria-pressed="false">${ICONS.bolt}</button>
       ${state.features?.restart === true ? `<button class="iconbtn" id="restart-dsh" title="重启 DSH" aria-label="重启 DSH">${ICONS.power}</button>` : ''}
+      ${state.features?.shutdown === true ? `<button class="iconbtn" id="shutdown-dsh" title="关闭 DSH" aria-label="关闭 DSH">${ICONS.powerOff}</button>` : ''}
       <button class="iconbtn" id="refresh" title="刷新">${ICONS.refresh}</button>
     </header>
     <div class="list-scroll" id="list-scroll">
@@ -726,6 +728,7 @@ function bindListEvents() {
   }
   document.querySelector('#awake-toggle')?.addEventListener('click', () => void toggleAwake());
   document.querySelector('#restart-dsh')?.addEventListener('click', () => confirmRestartDsh());
+  document.querySelector('#shutdown-dsh')?.addEventListener('click', () => confirmShutdownDsh());
   updateAwakeButton();
   renderBalance();
 }
@@ -802,9 +805,11 @@ function confirmRestartDsh() {
   });
 }
 
-/** 发送重启请求并显示等待遮罩。 */
+/** 发送重启请求并显示等待遮罩；先等提示显示完再真正重启。 */
 async function restartDsh() {
   showRestartOverlay();
+  // 让用户看清「正在重启」提示后再发出请求（约 1.5 秒）。
+  await new Promise((resolve) => { setTimeout(resolve, 1500); });
   try {
     await api('/api/restart', { method: 'POST', body: '{}' });
   } catch (error) {
@@ -813,6 +818,70 @@ async function restartDsh() {
     return;
   }
   void watchRestart();
+}
+
+/**
+ * 一键关闭 DSH：确认后调用 Host 的关闭接口，桌面应用退出后不再拉起。
+ */
+function confirmShutdownDsh() {
+  if (state.features?.shutdown !== true) {
+    toast('当前 Host 不支持从 Pocket 关闭 DSH');
+    return;
+  }
+  const mask = el('div', 'modal-mask');
+  const modal = el('div', 'modal');
+  modal.innerHTML = `
+    <h3>关闭 DSH？</h3>
+    <p>关闭会结束桌面应用与手机端连接，之后需要手动重新打开 DSH；正在运行的任务会被中断。</p>
+    <div class="modal-actions">
+      <button class="btn" id="shutdown-cancel">取消</button>
+      <button class="btn danger" id="shutdown-ok">关闭 DSH</button>
+    </div>`;
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  const close = () => mask.remove();
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) close();
+  });
+  modal.querySelector('#shutdown-cancel').addEventListener('click', close);
+  modal.querySelector('#shutdown-ok').addEventListener('click', () => {
+    close();
+    void shutdownDsh();
+  });
+}
+
+/** 发送关闭请求；先显示提示，等提示显示完再动桌面应用。 */
+async function shutdownDsh() {
+  showShutdownOverlay();
+  await new Promise((resolve) => { setTimeout(resolve, 1500); });
+  try {
+    await api('/api/shutdown', { method: 'POST', body: '{}' });
+  } catch (error) {
+    document.querySelector('.restart-overlay')?.remove();
+    toast(error.message ?? '关闭失败');
+    return;
+  }
+  const overlay = document.querySelector('.restart-overlay');
+  if (overlay === null) return;
+  overlay.querySelector('.restart-spinner')?.remove();
+  const title = overlay.querySelector('h3');
+  if (title !== null) title.textContent = 'DSH 已关闭';
+  const hint = overlay.querySelector('p');
+  if (hint !== null) hint.textContent = '桌面应用正在退出，手机端连接已断开；之后需要手动重新打开 DSH。可以关闭本页了。';
+}
+
+/** 全屏的“正在关闭”遮罩。 */
+function showShutdownOverlay() {
+  document.querySelector('.restart-overlay')?.remove();
+  const overlay = el('div', 'restart-overlay');
+  const card = el('div', 'restart-card');
+  card.append(
+    el('div', 'restart-spinner'),
+    el('h3', '', 'DSH 正在关闭…'),
+    el('p', '', '桌面应用会结束，手机端连接随之中断；之后需要手动重新打开 DSH。'),
+  );
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 }
 
 /** 全屏的“正在重启”遮罩；服务恢复后页面自动刷新。 */
@@ -2443,10 +2512,11 @@ function openDisplaySettings() {
   const supportsDisplay = state.features?.displaySettings === true;
   const supportsSurface = state.features?.desktopSurface === true;
   const supportsRestart = state.features?.restart === true;
+  const supportsShutdown = state.features?.shutdown === true;
   const tabs = SETTINGS_TABS.filter((tab) => (
     (tab.id !== 'truncate' || supportsDisplay)
     && (tab.id !== 'surface' || supportsSurface)
-    && (tab.id !== 'app' || supportsRestart)
+    && (tab.id !== 'app' || supportsRestart || supportsShutdown)
   ));
   const draft = {
     display: { ...state.display },
@@ -2531,16 +2601,22 @@ function openDisplaySettings() {
         </div>
         <div class="sheet-hint" id="surface-hint">桌面直通会加载完整的桌面界面（含所有插件），首屏更大；窄屏下侧栏会变成抽屉。切换后本页会自动刷新，可在直通界面的 Pocket 面板切回轻量界面。</div>
       </section>` : ''}
-      ${supportsRestart ? `
+      ${supportsRestart || supportsShutdown ? `
       <section class="settings-panel" data-settings-panel="app">
         <div class="sheet-label">DSH 应用</div>
         <div class="display-options">
+          ${supportsRestart ? `
           <div class="display-option static">
             <span class="display-option-text"><b>重启 DSH</b><span>重新启动桌面应用，加载最新插件与配置</span></span>
             <button class="btn danger" id="restart-dsh-settings">重启</button>
-          </div>
+          </div>` : ''}
+          ${supportsShutdown ? `
+          <div class="display-option static">
+            <span class="display-option-text"><b>关闭 DSH</b><span>结束桌面应用与手机连接，之后需手动重新打开</span></span>
+            <button class="btn danger" id="shutdown-dsh-settings">关闭</button>
+          </div>` : ''}
         </div>
-        <div class="sheet-hint">重启会中断正在运行的任务；桌面应用会自动重新打开。手机端通过公网隧道访问时，重启后的地址可能会变化。</div>
+        <div class="sheet-hint">重启会中断正在运行的任务，桌面应用会自动重新打开；关闭则不会自动恢复，需要手动重新打开 DSH。手机端通过公网隧道访问时，重启后的地址可能会变化。</div>
       </section>` : ''}
     </div>
     <div class="modal-actions">
@@ -2558,6 +2634,10 @@ function openDisplaySettings() {
   modal.querySelector('#restart-dsh-settings')?.addEventListener('click', () => {
     close();
     confirmRestartDsh();
+  });
+  modal.querySelector('#shutdown-dsh-settings')?.addEventListener('click', () => {
+    close();
+    confirmShutdownDsh();
   });
 
   const tabButtons = [...modal.querySelectorAll('[data-settings-tab]')];
