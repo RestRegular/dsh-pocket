@@ -1,12 +1,23 @@
-/* Phone layout injected by dsh-pocket for the desktop surface (≤768px). */
+/* Phone layout injected by dsh-pocket for the desktop surface (≤768px).
+ *
+ * Newer DSH builds ship their OWN mobile drawer: the frame carries
+ * `data-sidebar-drawer`, a `[data-sidebar-mask]` scrim dims the page and a
+ * `[data-shortcut-modal="sidebar"]` nav dialog renders the sidebar (trapped in
+ * a transformed z-71 stacking context). On those builds our legacy
+ * `.dsh-pocket-backdrop` (a body-level z-110 blur layer) paints ABOVE the whole
+ * native drawer, covers the interface and swallows every tap. So every legacy
+ * app-shell rule below is gated with `:not([data-sidebar-drawer])`, and the
+ * settings-dialog rules exclude `[data-shortcut-modal]` dialogs; the native
+ * drawer is left completely alone. Older DSH builds (no such attribute) keep
+ * the original overlay-drawer treatment, so this stays backward compatible. */
 
 @media (max-width: 768px) {
-  /* ---------- app shell: the left sidebar becomes an overlay drawer ---------- */
-  [class*="_frame"]:not([data-sidebar-collapsed="true"]) {
+  /* ---------- app shell: legacy builds — the left sidebar becomes an overlay drawer ---------- */
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]):not([data-sidebar-drawer]) {
     grid-template-columns: 56px minmax(0px, 1fr) 0px !important;
   }
 
-  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_sidebarCol"] {
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]):not([data-sidebar-drawer]) [class*="_sidebarCol"] {
     position: fixed !important;
     inset: 0 auto 0 0 !important;
     width: min(280px, 86vw) !important;
@@ -21,19 +32,21 @@
   /* Taking the sidebar out of flow makes the remaining grid children slide one
      column left, which squashes the conversation into the 56px rail column.
      Pin the real columns back so the chat stays behind the drawer. */
-  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_centerCol"] {
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]):not([data-sidebar-drawer]) [class*="_centerCol"] {
     grid-column: 2 !important;
   }
 
-  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_rightbarCol"] {
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]):not([data-sidebar-drawer]) [class*="_rightbarCol"] {
     grid-column: 3 !important;
   }
 
-  [class*="_frame"]:not([data-sidebar-collapsed="true"]) [class*="_sidebarCol"] > * {
+  [class*="_frame"]:not([data-sidebar-collapsed="true"]):not([data-sidebar-drawer]) [class*="_sidebarCol"] > * {
     width: 100% !important;
     max-width: 100% !important;
   }
 
+  /* Native-drawer builds own their scrim; never inject our own blur layer
+     above them (it would cover the whole UI and eat every tap). */
   .dsh-pocket-backdrop {
     position: fixed;
     inset: 0;
@@ -43,14 +56,18 @@
     backdrop-filter: blur(1px);
   }
 
-  /* ---------- dialogs other than settings: keep them inside the viewport ---------- */
-  [role="dialog"]:not(:has(> nav)) {
+  /* ---------- dialogs other than settings: keep them inside the viewport ----------
+     Exclude the host's native mobile sidebar nav dialog: it owns its own
+     layout and must not be restyled into a full-screen settings sheet. */
+  [role="dialog"]:not([data-shortcut-modal]):not(:has(> nav)) {
     max-width: calc(100vw - 16px) !important;
     max-height: calc(100dvh - 16px) !important;
   }
 
-  /* ---------- settings dialog: full screen + horizontal section tabs ---------- */
-  [role="dialog"]:has(> nav) {
+  /* ---------- settings dialog: full screen + horizontal section tabs ----------
+     Legacy DSH builds had no `data-shortcut-modal`; newer ones use it for the
+     native sidebar drawer, so all of these rules are scoped away from it. */
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) {
     position: fixed !important;
     inset: 0 !important;
     width: 100vw !important;
@@ -63,7 +80,7 @@
     flex-direction: column;
   }
 
-  [role="dialog"]:has(> nav) > nav {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > nav {
     width: 100% !important;
     min-height: 0;
     flex: none;
@@ -75,14 +92,14 @@
     padding: 6px 46px 0 12px !important;
   }
 
-  [role="dialog"]:has(> nav) > nav > :first-child {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > nav > :first-child {
     display: block !important;
     flex: none;
     white-space: nowrap;
     font-weight: 650;
   }
 
-  [role="dialog"]:has(> nav) > nav [class*="_navList"] {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > nav [class*="_navList"] {
     flex: 1 1 auto;
     flex-direction: row !important;
     align-items: center;
@@ -95,11 +112,11 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  [role="dialog"]:has(> nav) > nav [class*="_navList"]::-webkit-scrollbar {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > nav [class*="_navList"]::-webkit-scrollbar {
     display: none;
   }
 
-  [role="dialog"]:has(> nav) > nav [class*="_navCell"] {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > nav [class*="_navCell"] {
     width: auto !important;
     flex: 0 0 auto;
     white-space: nowrap;
@@ -108,20 +125,20 @@
     border-radius: 10px;
   }
 
-  [role="dialog"]:has(> nav) > [class*="_content"] {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > [class*="_content"] {
     flex: 1 1 auto;
     width: 100% !important;
     min-width: 0;
     min-height: 0;
   }
 
-  [role="dialog"]:has(> nav) > [class*="_content"] [class*="_options"] {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > [class*="_content"] [class*="_options"] {
     padding: 12px !important;
   }
 
   /* the close control sits at the right edge of the tab bar; the config-file
      action targets the desktop shell and is hidden on a phone */
-  [role="dialog"]:has(> nav) > [class*="_content"] > [class*="_header"] {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > [class*="_content"] > [class*="_header"] {
     position: absolute !important;
     top: 0;
     right: 0;
@@ -137,7 +154,7 @@
     z-index: 5;
   }
 
-  [role="dialog"]:has(> nav) > [class*="_content"] > [class*="_header"] [class*="_actions"] {
+  [role="dialog"]:not([data-shortcut-modal]):has(> nav) > [class*="_content"] > [class*="_header"] [class*="_actions"] {
     display: none !important;
   }
 
