@@ -130,6 +130,36 @@ if (!alreadyRegistered()) {
         displaySave: '保存显示设置',
         displayRange: '截断长度需在 500–50000 字符之间',
         displayNote: '关闭某类截断后，这类内容会完整发送到手机，可能增加流量和首屏时间。',
+        notifyCard: '断网自动恢复',
+        notifyHint: '网络恢复后自动重建公网通道，并把新地址推到企业微信。',
+        notifyEnable: '推送到企业微信',
+        notifyEnableDesc: '仅在公网通道是 Cloudflared 时推送；自有服务器不打扰。',
+        notifyWebhook: '群机器人 Webhook',
+        notifyWebhookPlaceholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…',
+        notifyWebhookHint: '在群聊 → 群机器人 → 添加机器人里复制地址，也可以只填 key。',
+        notifyWithToken: '链接里带上访问令牌',
+        notifyWithTokenDesc: '打开链接即可直接进入，不用再输入令牌；关掉后只推裸地址。',
+        notifySave: '保存推送设置',
+        notifyTest: '发送测试',
+        notifyTesting: '正在发送…',
+        notifySaved: '推送设置已保存',
+        notifyTestOk: '测试消息已发出，请在群里查看',
+        notifyTestFail: '测试失败',
+        notifyNotConfigured: '还没有配置 Webhook',
+        notifyOkAt: '上次推送成功',
+        notifyFailAt: '上次推送失败',
+        notifyNever: '还没有推送过',
+        reconnectNow: '立即重建',
+        reconnecting: '正在重建…',
+        networkOnline: '网络正常',
+        networkOffline: '网络已断开',
+        networkUnknown: '正在检测网络',
+        reconnectLast: '上次重建',
+        reconnectNever: '还没有重建过',
+        reconnectAttempts: '自动重建次数',
+        reconnectHint: '断网恢复后会自动重建；Cloudflared 的新地址会推送到企业微信，自有服务器保持安静。',
+        reconnectDone: '公网通道已重建',
+        reconnectFailed: '重建失败',
         surfaceCard: '手机端界面',
         surfaceHint: '选择手机打开时看到的界面。',
         surfaceMobile: '轻量界面',
@@ -264,6 +294,36 @@ if (!alreadyRegistered()) {
         displaySave: 'Save display settings',
         displayRange: 'Truncation length must be between 500 and 50000 characters',
         displayNote: 'When a category is not truncated, its content is sent to the phone in full and may increase traffic and first-load time.',
+        notifyCard: 'Network recovery',
+        notifyHint: 'Rebuild the public tunnel after the network returns, and push the new URL to WeCom.',
+        notifyEnable: 'Push to WeCom',
+        notifyEnableDesc: 'Only pushes for Cloudflared tunnels; self-hosted servers stay silent.',
+        notifyWebhook: 'Group robot webhook',
+        notifyWebhookPlaceholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…',
+        notifyWebhookHint: 'Copy it from Group chat → Group robot → Add robot. The bare key works too.',
+        notifyWithToken: 'Include the access token',
+        notifyWithTokenDesc: 'The link opens straight into Pocket; turn it off to send the bare address.',
+        notifySave: 'Save push settings',
+        notifyTest: 'Send test',
+        notifyTesting: 'Sending…',
+        notifySaved: 'Push settings saved',
+        notifyTestOk: 'Test message sent — check the group chat',
+        notifyTestFail: 'Test failed',
+        notifyNotConfigured: 'No webhook configured yet',
+        notifyOkAt: 'Last push succeeded',
+        notifyFailAt: 'Last push failed',
+        notifyNever: 'No pushes yet',
+        reconnectNow: 'Rebuild now',
+        reconnecting: 'Rebuilding…',
+        networkOnline: 'Network up',
+        networkOffline: 'Network down',
+        networkUnknown: 'Checking network',
+        reconnectLast: 'Last rebuild',
+        reconnectNever: 'No rebuilds yet',
+        reconnectAttempts: 'Auto rebuilds',
+        reconnectHint: 'The tunnel rebuilds itself after an outage; a new Cloudflared URL is pushed to WeCom, while a self-hosted server stays quiet.',
+        reconnectDone: 'Public tunnel rebuilt',
+        reconnectFailed: 'Rebuild failed',
         surfaceCard: 'Phone surface',
         surfaceHint: 'Choose what the phone opens.',
         surfaceMobile: 'Lightweight',
@@ -680,6 +740,14 @@ if (!alreadyRegistered()) {
         return LANG.tunnelOff;
       }
 
+      /** 把毫秒时间戳格式化成 HH:MM，用于「上次推送/重建」这类短标签。 */
+      function formatClock(at) {
+        if (typeof at !== 'number' || !Number.isFinite(at) || at <= 0) return '-';
+        const date = new Date(at);
+        const pad = (value) => String(value).padStart(2, '0');
+        return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+
       function UrlRow({ label, url }) {
         const [copied, setCopied] = useState(false);
         if (typeof url !== 'string' || url.length === 0) return null;
@@ -732,6 +800,7 @@ if (!alreadyRegistered()) {
         const [provider, setProvider] = useState('cloudflared');
         const [sshHost, setSshHost] = useState('');
         const [displayDraft, setDisplayDraft] = useState(undefined);
+        const [notifyDraft, setNotifyDraft] = useState(undefined);
         const timer = useRef(0);
 
         useEffect(() => {
@@ -745,6 +814,16 @@ if (!alreadyRegistered()) {
           // 只在首次拿到状态时初始化草稿；3 秒轮询不要覆盖用户正在编辑的值。
           setDisplayDraft((draft) => draft ?? status.display);
         }, [status?.display]);
+
+        useEffect(() => {
+          if (status?.notify === undefined) return;
+          // 同上：轮询不能覆盖正在输入的 Webhook。
+          setNotifyDraft((draft) => draft ?? {
+            enabled: status.notify.enabled === true,
+            webhook: typeof status.notify.webhook === 'string' ? status.notify.webhook : '',
+            withToken: status.notify.withToken !== false,
+          });
+        }, [status?.notify]);
 
         const refresh = useCallback(async () => {
           try {
@@ -853,6 +932,81 @@ if (!alreadyRegistered()) {
               limit: Math.round(limit),
             },
           });
+        };
+
+        // 推送设置草稿：`secret` 永不回填，留空表示沿用已保存的那份。
+        const draftNotify = notifyDraft ?? {
+          enabled: status?.notify?.enabled === true,
+          webhook: typeof status?.notify?.webhook === 'string' ? status.notify.webhook : '',
+          withToken: status?.notify?.withToken !== false,
+        };
+        const patchNotify = (key, value) => {
+          setNotifyDraft((draft) => ({ ...(draft ?? draftNotify), [key]: value }));
+        };
+        const saveNotify = async () => {
+          setError('');
+          const next = await action('set-notify', {
+            notify: {
+              enabled: draftNotify.enabled === true,
+              webhook: draftNotify.webhook.trim(),
+              withToken: draftNotify.withToken !== false,
+            },
+          });
+          if (next?.notify !== undefined) {
+            setNotifyDraft({
+              enabled: next.notify.enabled === true,
+              webhook: typeof next.notify.webhook === 'string' ? next.notify.webhook : '',
+              withToken: next.notify.withToken !== false,
+            });
+            setToast(LANG.notifySaved);
+          }
+        };
+        const testNotify = async () => {
+          setBusy('test-notify');
+          try {
+            const url = new URL(API, window.location.origin);
+            url.searchParams.set('op', 'test-notify');
+            const response = await fetch(url.toString(), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ op: 'test-notify' }),
+            });
+            const payload = await response.json().catch(() => ({ ok: false, error: `HTTP ${response.status}` }));
+            if (payload.ok !== true) throw new Error(payload.error ?? `HTTP ${response.status}`);
+            if (payload.status !== undefined) setStatus(payload.status);
+            const result = payload.test?.result;
+            if (result?.ok === true) setToast(LANG.notifyTestOk);
+            else setError(`${LANG.notifyTestFail}：${result?.error ?? LANG.notifyNotConfigured}`);
+          } catch (failure) {
+            setError(`${LANG.notifyTestFail}：${String(failure?.message ?? failure)}`);
+          } finally {
+            setBusy('');
+          }
+        };
+        const reconnectNow = async () => {
+          setBusy('reconnect-tunnel');
+          try {
+            const url = new URL(API, window.location.origin);
+            url.searchParams.set('op', 'reconnect-tunnel');
+            const response = await fetch(url.toString(), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ op: 'reconnect-tunnel' }),
+            });
+            const payload = await response.json().catch(() => ({ ok: false, error: `HTTP ${response.status}` }));
+            if (payload.ok !== true) throw new Error(payload.error ?? `HTTP ${response.status}`);
+            if (payload.status !== undefined) setStatus(payload.status);
+            const network = payload.network ?? {};
+            if (typeof network.lastError === 'string' && network.lastError.length > 0) {
+              setError(`${LANG.reconnectFailed}：${network.lastError}`);
+            } else {
+              setToast(LANG.reconnectDone);
+            }
+          } catch (failure) {
+            setError(`${LANG.reconnectFailed}：${String(failure?.message ?? failure)}`);
+          } finally {
+            setBusy('');
+          }
         };
 
         if (status === undefined) {
@@ -1164,6 +1318,91 @@ if (!alreadyRegistered()) {
           ),
         );
 
+        const notify = status.notify ?? { enabled: false, configured: false, mode: 'none' };
+        const network = status.network ?? {};
+        const networkKnown = typeof network.online === 'boolean';
+        const networkOnline = network.online === true;
+        const networkTone = networkKnown ? (networkOnline ? 'on' : 'off') : '';
+        const networkLabel = !networkKnown ? LANG.networkUnknown : (networkOnline ? LANG.networkOnline : LANG.networkOffline);
+        const notifyActive = notify.enabled === true && notify.configured === true;
+        const lastPush = notify.lastResult;
+        const pushStateText = lastPush === null || lastPush === undefined
+          ? LANG.notifyNever
+          : lastPush.ok === true
+            ? `${LANG.notifyOkAt} · ${formatClock(lastPush.at)}`
+            : `${LANG.notifyFailAt} · ${lastPush.error ?? ''}`;
+        const lastReconnect = typeof network.lastAt === 'number' && network.lastAt > 0
+          ? formatClock(network.lastAt)
+          : LANG.reconnectNever;
+
+        const notifyCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'globe', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.notifyCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.notifyHint),
+            ),
+            h(StatusPill, { tone: networkTone, label: networkLabel }),
+          ),
+          h('dl', { className: 'dsh-pk-kv' },
+            h('dt', null, LANG.reconnectAttempts), h('dd', null, String(network.attempts ?? 0)),
+            h('dt', null, LANG.reconnectLast), h('dd', null, lastReconnect),
+            h('dt', null, LANG.publicEntry), h('dd', null, pushStateText),
+          ),
+          typeof network.lastError === 'string' && network.lastError.length > 0
+            ? h('div', { className: 'dsh-pk-err' }, `${LANG.reconnectFailed}：${network.lastError}`)
+            : null,
+          h('div', { className: 'dsh-pk-field' },
+            h(DisplayRow, {
+              label: LANG.notifyEnable,
+              description: LANG.notifyEnableDesc,
+              checked: draftNotify.enabled === true,
+              disabled: busy !== '',
+              onChange: (value) => patchNotify('enabled', value),
+            }),
+            h('DisplayRow', {
+              label: LANG.notifyWithToken,
+              description: LANG.notifyWithTokenDesc,
+              checked: draftNotify.withToken !== false,
+              disabled: busy !== '',
+              onChange: (value) => patchNotify('withToken', value),
+            }),
+          ),
+          h('div', { className: 'dsh-pk-field' },
+            h('span', { className: 'dsh-pk-field-label' }, LANG.notifyWebhook),
+            h('div', { className: 'dsh-pk-input-shell' },
+              h(LineIcon, { name: 'plug', size: 15 }),
+              h('input', {
+                className: 'dsh-pk-input',
+                type: 'password',
+                value: draftNotify.webhook,
+                placeholder: LANG.notifyWebhookPlaceholder,
+                disabled: busy !== '',
+                onChange: (event) => patchNotify('webhook', event.target.value),
+              }),
+            ),
+            h('span', { className: 'dsh-pk-hint' }, LANG.notifyWebhookHint),
+          ),
+          h('div', { className: 'dsh-pk-actions' },
+            h('button', {
+              className: 'dsh-pk-btn primary',
+              disabled: busy !== '',
+              onClick: () => void saveNotify(),
+            }, busy === 'set-notify' ? LANG.switching : LANG.notifySave),
+            h('button', {
+              className: 'dsh-pk-btn',
+              disabled: busy !== '' || notifyActive !== true,
+              onClick: () => void testNotify(),
+            }, busy === 'test-notify' ? LANG.notifyTesting : LANG.notifyTest),
+            h('button', {
+              className: 'dsh-pk-btn',
+              disabled: busy !== '' || tunnel.state === 'off',
+              onClick: () => void reconnectNow(),
+            }, busy === 'reconnect-tunnel' ? LANG.reconnecting : LANG.reconnectNow),
+          ),
+          h('div', { className: 'dsh-pk-note' }, LANG.reconnectHint),
+        );
+
         const narrowCard = h('section', { className: 'dsh-pk-card' },
           h('div', { className: 'dsh-pk-card-top' },
             h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'phone', size: 16 })),
@@ -1259,6 +1498,7 @@ if (!alreadyRegistered()) {
               : h(React.Fragment, null,
                 surfaceCard,
                 surfaceValue === 'mobile' ? displayCard : narrowCard,
+                notifyCard,
                 restartCard,
                 h('div', { className: 'dsh-pk-settings-note' },
                   surfaceValue === 'mobile'

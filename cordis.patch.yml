@@ -22,3 +22,11 @@
         # sshRemotePort: 8790
         # sshExposePort: 80
         # sshPublicUrl: https://pocket.example.com
+        # 断网恢复后自动重建公网隧道；只有 Cloudflared 会把新地址推到企业微信，
+        # 自有服务器（tunnel: ssh）保持安静、不推送。
+        # 群机器人 Webhook（群聊 → 群机器人 → 添加机器人，粘贴地址或只填 key）：
+        # wecomWebhook: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx
+        # 关掉推送写 false；不填 webhook 等于没配。
+        # wecomNotify: true
+        # 推送消息里是否带访问令牌（关掉则只推裸地址，手机上需要手动输入令牌）：
+        # wecomWithToken: true

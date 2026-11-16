@@ -198,6 +198,32 @@ sshExposePort: 80
 
 > 直接监听公网 80 时是 **HTTP**，令牌和会话内容会以明文经过网络。生产使用建议让 `sshExposeHost: 127.0.0.1`，在服务器上用 Nginx/Caddy 做 HTTPS 反代，并把 `sshPublicUrl` 指到 HTTPS 地址。
 
+### 断网恢复后自动重建
+
+电脑休眠、切换 Wi-Fi 或拔掉网线再恢复时，隧道进程往往还“活着”，但那条连接已经半死：`trycloudflare.com` 的域名还能解析，请求却打不到本机。Pocket 自己盯着网络，一旦发现断网后恢复就整条重建：
+
+- 探测方式是对 `223.5.5.5`、`1.1.1.1`、`www.baidu.com` 做 TCP 连接，任意一个通就算在线；在线每 15 秒探一次，离线每 5 秒探一次，恢复得更快。
+- 恢复后重建隧道；顺带兜住“隧道进程自己挂了”的情况（状态变成 `error` 时也会重建）。
+- 30 秒冷却 + 连续失败指数退避（最长 10 分钟），网络抖动不会把隧道反复重启。
+- 面板和手机端都有「立即重建」按钮，等不及自动探测时可以手动触发。
+
+**只有 Cloudflared 会推送通知。** Quick Tunnel 每次重建都会换域名，旧链接直接失效，所以重建成功后把新地址发到企业微信；`ssh` / 自有服务器地址固定，按约定**完全不推送**（面板状态里会标成「按约定跳过」）。
+
+配置企业微信有两种方式，任选其一：
+
+```yaml
+# 群机器人 Webhook（最省事）：群聊 → 群机器人 → 添加机器人，复制地址
+wecomWebhook: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx
+# 也可以只填 key
+# wecomWebhook: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+wecomNotify: true          # 默认开；设 false 关掉推送
+wecomToUser: '@all'        # 应用消息模式的接收人
+```
+
+企业应用消息（corpId + secret + agentId）也支持，见下面的配置表。也可以完全不动 YAML：桌面面板「设置 → 断网自动恢复」里填 Webhook、点「发送测试」验证，再点「保存推送设置」；这份配置写进 `~/.dsh/pocket/state.json`（0600），面板里的选择优先。
+
+> 推送消息里默认带访问令牌（`?token=…`），点开就能直接进 Pocket。不想让令牌出现在群聊里，把「链接里带上访问令牌」关掉即可。
+
 状态文件保存访问令牌、创建时间、面板选中的局域网 IP、公网入口和「保持电脑常亮」开关：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
 
 ## 移动端能力
@@ -296,6 +322,13 @@ sshExposePort: 80
 | `keepAwakeDisplay` | `true` | 常亮时是否同时阻止屏幕关闭；设 `false` 只阻止系统睡眠（Windows/macOS）。 |
 | `surface` | `mobile` | 手机端默认界面。`mobile` 是 Pocket 自带轻量页；`desktop` 直接把桌面 Web GUI 整页反代给手机。面板里的选择优先并持久化。 |
 | `mobileLayout` | `true` | 桌面直通时是否注入窄屏适配样式与抽屉脚本。可在面板「设置 → 窄屏适配」里随时关闭。 |
+| `wecomWebhook` | 无 | 企业微信群机器人 Webhook（或只填 key）。断网恢复重建 Cloudflared 隧道后，把新地址推到这里。 |
+| `wecomNotify` | `true` | 是否启用推送。设 `false` 关闭；不填 `wecomWebhook` 时等于没配。 |
+| `wecomCorpId` / `wecomSecret` / `wecomAgentId` | 无 | 改用企业应用消息时的凭据；三者齐备才生效，优先于 Webhook。 |
+| `wecomToUser` | `@all` | 应用消息的接收人，多个用 `|` 分隔。 |
+| `wecomWithToken` | `true` | 推送链接是否带访问令牌；设 `false` 只推裸地址。 |
+
+推送配置也可以写成 `notify: { webhook, enabled, withToken, ... }`，两种写法等价。桌面面板与手机端改动后写入 `~/.dsh/pocket/state.json`，并优先于 YAML。
 
 ## HTTP 接口
 
@@ -313,6 +346,9 @@ sshExposePort: 80
 | GET | `/api/sessions` | 会话列表，同时返回 `workspaces` / `unassigned` / `archived` / `pinned` 分组和 `pending`（等待回答的提问/审批摘要）。 |
 | POST | `/api/sessions` | 新建会话，`{ "cwd": "..." }`。 |
 | POST | `/api/keep-awake` | `{ "enabled": true \| false }`，打开/关闭宿主的「保持电脑常亮」，返回最新 `awake` 状态。 |
+| GET | `/api/notify` | 企业微信推送配置与最近一次推送结果；`secret` 只回 `secretSet: true/false`。 |
+| POST | `/api/notify` | `{ "enabled", "webhook", "withToken" }` 等，保存推送配置并落盘。 |
+| POST | `/api/reconnect` | 立即重建公网隧道（不等自动探测），返回 `network` 状态。 |
 | POST | `/api/restart` | 一键重启整个桌面 DSH；响应先返回 `{ "ok": true, "restarting": true }`，约 1.5 秒后进程重启。仅 Electron 桌面版可用，`dsh web` 返回 500 与原因。 |
 | POST | `/api/shutdown` | 一键关闭整个桌面 DSH（不再自动拉起）；响应先返回 `{ "ok": true, "shuttingDown": true }`，约 1.5 秒后进程退出。仅 Electron 桌面版可用。 |
 | GET | `/api/sessions/:id` | 标题、目录、运行状态。 |
@@ -371,12 +407,15 @@ node --check lib\index.js
 node --check lib\server.js
 node --check lib\tunnel.js
 node --check lib\awake.js
+node --check lib\netwatch.js
+node --check lib\notify.js
 node --check web\app.js
 node --check client\client.js
 pnpm install   # 拉取 ws，以及 Windows x64 的可选 cloudflared 二进制
 ```
 
 - 宿主：`lib/index.js` 负责配置、生命周期与桌面面板路由；`lib/server.js` 是移动 HTTP/WS 服务；`lib/tunnel.js` 管理隧道子进程；`lib/awake.js` 与 `lib/awake-win.ps1` 负责保持电脑常亮。
+- 断网恢复：`lib/netwatch.js` 用 TCP 探测判断网络状态翻转，`lib/server.js` 的 `#handleReconnect()` 据此重建隧道；`lib/notify.js` 负责企业微信推送（群机器人 Webhook 或企业应用消息）。
 - 移动页面：`web/`（原生 ESM，无构建）。
 - 桌面面板：`client/client.js`，注册 `sidebar.panellist` 与 `main` 两个 slot。
 
