@@ -7,3 +7,6 @@ Thumbs.db
 .dsh-ops/
 .dsh/
 .git-credential.ps1
+
+# 发布时临时生成的 npm userconfig（含  占位符）
+.dsh-probe/
