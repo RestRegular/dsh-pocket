@@ -30,3 +30,6 @@
         # wecomNotify: true
         # 推送消息里是否带访问令牌（关掉则只推裸地址，手机上需要手动输入令牌）：
         # wecomWithToken: true
+        # 阻塞型交互推送（工具审批 / 用户提问），各自可单独关掉，默认都开：
+        # wecomNotifyApprovals: true
+        # wecomNotifyQuestions: true

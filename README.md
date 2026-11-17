@@ -220,9 +220,20 @@ wecomNotify: true          # 默认开；设 false 关掉推送
 wecomToUser: '@all'        # 应用消息模式的接收人
 ```
 
-企业应用消息（corpId + secret + agentId）也支持，见下面的配置表。也可以完全不动 YAML：桌面面板「设置 → 断网自动恢复」里填 Webhook、点「发送测试」验证，再点「保存推送设置」；这份配置写进 `~/.dsh/pocket/state.json`（0600），面板里的选择优先。
+企业应用消息（corpId + secret + agentId）也支持，见下面的配置表。也可以完全不动 YAML：桌面面板「设置 → 消息推送」里填 Webhook、点「发送测试」验证，再点「保存推送设置」；这份配置写进 `~/.dsh/pocket/state.json`（0600），面板里的选择优先。
 
 > 推送消息里默认带访问令牌（`?token=…`），点开就能直接进 Pocket。不想让令牌出现在群聊里，把「链接里带上访问令牌」关掉即可。
+
+### 审批 / 提问推送
+
+除了断网换地址，任何**阻塞任务的操作**也能推到企业微信，让你不用守在电脑前：
+
+- **工具审批**：DSH 请求批准某个工具调用时，立刻推一条「Pocket 工具审批请求」。
+- **用户提问**：Agent 向你提问、等待回答时，推一条「Pocket 提问等待回答」。
+
+消息里带会话标题、问题/工具摘要，以及一个直接跳到该会话的链接；点开就能允许/拒绝或作答。两类推送各有独立开关，可在桌面面板「消息推送」卡片里随时启用/关闭（`wecomNotifyApprovals` / `wecomNotifyQuestions`），总开关 `wecomNotify` 仍是前提。任何一类关闭都只是不推送，不影响审批/提问本身在桌面或手机上的正常处理。
+
+> 公网地址的「断网重建」推送仍只对 Cloudflared 生效；审批/提问推送与隧道类型无关，任何入口下都能收到。
 
 状态文件保存访问令牌、创建时间、面板选中的局域网 IP、公网入口和「保持电脑常亮」开关：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
 
@@ -328,6 +339,8 @@ wecomToUser: '@all'        # 应用消息模式的接收人
 | `wecomCorpId` / `wecomSecret` / `wecomAgentId` | 无 | 改用企业应用消息时的凭据；三者齐备才生效，优先于 Webhook。 |
 | `wecomToUser` | `@all` | 应用消息的接收人，多个用 `|` 分隔。 |
 | `wecomWithToken` | `true` | 推送链接是否带访问令牌；设 `false` 只推裸地址。 |
+| `wecomNotifyApprovals` | `true` | 工具审批请求是否推送到企业微信；设 `false` 关闭这一类。 |
+| `wecomNotifyQuestions` | `true` | 用户提问是否推送到企业微信；设 `false` 关闭这一类。 |
 
 推送配置也可以写成 `notify: { webhook, enabled, withToken, ... }`，两种写法等价。桌面面板与手机端改动后写入 `~/.dsh/pocket/state.json`，并优先于 YAML。
 

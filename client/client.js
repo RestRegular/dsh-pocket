@@ -131,9 +131,13 @@ if (!alreadyRegistered()) {
         displayRange: '截断长度需在 500–50000 字符之间',
         displayNote: '关闭某类截断后，这类内容会完整发送到手机，可能增加流量和首屏时间。',
         notifyCard: '断网自动恢复',
-        notifyHint: '网络恢复后自动重建公网通道，并把新地址推到企业微信。',
+        notifyHint: '有工具审批、用户提问时推送到企业微信；断网恢复后也把新公网地址发给你。',
         notifyEnable: '推送到企业微信',
         notifyEnableDesc: '仅在公网通道是 Cloudflared 时推送；自有服务器不打扰。',
+        notifyApprovals: '推送工具审批请求',
+        notifyApprovalsDesc: '有工具需要批准时，立即推一条消息到企业微信，点链接直接去处理。',
+        notifyQuestions: '推送用户提问',
+        notifyQuestionsDesc: 'Agent 提问等待回答时，立即推一条消息到企业微信。',
         notifyWebhook: '群机器人 Webhook',
         notifyWebhookPlaceholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…',
         notifyWebhookHint: '在群聊 → 群机器人 → 添加机器人里复制地址，也可以只填 key。',
@@ -295,9 +299,13 @@ if (!alreadyRegistered()) {
         displayRange: 'Truncation length must be between 500 and 50000 characters',
         displayNote: 'When a category is not truncated, its content is sent to the phone in full and may increase traffic and first-load time.',
         notifyCard: 'Network recovery',
-        notifyHint: 'Rebuild the public tunnel after the network returns, and push the new URL to WeCom.',
+        notifyHint: 'Push tool approvals and pending questions to WeCom, plus the new URL after the tunnel rebuilds.',
         notifyEnable: 'Push to WeCom',
         notifyEnableDesc: 'Only pushes for Cloudflared tunnels; self-hosted servers stay silent.',
+        notifyApprovals: 'Push tool approvals',
+        notifyApprovalsDesc: 'Send a WeCom message the moment a tool needs approval, with a link straight to it.',
+        notifyQuestions: 'Push user questions',
+        notifyQuestionsDesc: 'Send a WeCom message whenever the agent asks a question that is waiting on you.',
         notifyWebhook: 'Group robot webhook',
         notifyWebhookPlaceholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…',
         notifyWebhookHint: 'Copy it from Group chat → Group robot → Add robot. The bare key works too.',
@@ -822,6 +830,8 @@ if (!alreadyRegistered()) {
             enabled: status.notify.enabled === true,
             webhook: typeof status.notify.webhook === 'string' ? status.notify.webhook : '',
             withToken: status.notify.withToken !== false,
+            notifyApprovals: status.notify.notifyApprovals !== false,
+            notifyQuestions: status.notify.notifyQuestions !== false,
           });
         }, [status?.notify]);
 
@@ -939,6 +949,8 @@ if (!alreadyRegistered()) {
           enabled: status?.notify?.enabled === true,
           webhook: typeof status?.notify?.webhook === 'string' ? status.notify.webhook : '',
           withToken: status?.notify?.withToken !== false,
+          notifyApprovals: status?.notify?.notifyApprovals !== false,
+          notifyQuestions: status?.notify?.notifyQuestions !== false,
         };
         const patchNotify = (key, value) => {
           setNotifyDraft((draft) => ({ ...(draft ?? draftNotify), [key]: value }));
@@ -950,6 +962,8 @@ if (!alreadyRegistered()) {
               enabled: draftNotify.enabled === true,
               webhook: draftNotify.webhook.trim(),
               withToken: draftNotify.withToken !== false,
+              notifyApprovals: draftNotify.notifyApprovals !== false,
+              notifyQuestions: draftNotify.notifyQuestions !== false,
             },
           });
           if (next?.notify !== undefined) {
@@ -957,6 +971,8 @@ if (!alreadyRegistered()) {
               enabled: next.notify.enabled === true,
               webhook: typeof next.notify.webhook === 'string' ? next.notify.webhook : '',
               withToken: next.notify.withToken !== false,
+              notifyApprovals: next.notify.notifyApprovals !== false,
+              notifyQuestions: next.notify.notifyQuestions !== false,
             });
             setToast(LANG.notifySaved);
           }
@@ -1360,7 +1376,21 @@ if (!alreadyRegistered()) {
               disabled: busy !== '',
               onChange: (value) => patchNotify('enabled', value),
             }),
-            h('DisplayRow', {
+            h(DisplayRow, {
+              label: LANG.notifyApprovals,
+              description: LANG.notifyApprovalsDesc,
+              checked: draftNotify.notifyApprovals !== false,
+              disabled: busy !== '' || draftNotify.enabled !== true,
+              onChange: (value) => patchNotify('notifyApprovals', value),
+            }),
+            h(DisplayRow, {
+              label: LANG.notifyQuestions,
+              description: LANG.notifyQuestionsDesc,
+              checked: draftNotify.notifyQuestions !== false,
+              disabled: busy !== '' || draftNotify.enabled !== true,
+              onChange: (value) => patchNotify('notifyQuestions', value),
+            }),
+            h(DisplayRow, {
               label: LANG.notifyWithToken,
               description: LANG.notifyWithTokenDesc,
               checked: draftNotify.withToken !== false,
