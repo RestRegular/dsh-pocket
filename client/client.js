@@ -53,7 +53,7 @@ if (!alreadyRegistered()) {
         serverCard: '手机服务',
         serverCardHint: '手机与电脑在同一网络时可直接使用局域网地址。',
         tunnelCard: '公网通道',
-        tunnelCardHint: 'Cloudflared 开箱即用；自有服务器走 SSH 反向转发。',
+        tunnelCardHint: 'Cloudflared 开箱即用；自有服务器走 SSH 反向转发；只在局域网用就选「仅局域网」。',
         connectCard: '手机连接',
         connectHint: '扫码即可打开 Pocket；链接内含访问令牌，请勿公开分享。',
         qrPublicEmpty: '公网隧道未开启',
@@ -65,6 +65,9 @@ if (!alreadyRegistered()) {
         cloudflaredDesc: '自动 HTTPS 域名 · 无需服务器',
         ownServer: '自有服务器',
         ownServerDesc: 'SSH 反向转发 · 自备公网 IP',
+        lanOnly: '仅局域网',
+        lanOnlyDesc: '不建公网隧道 · 只在本机 / 同一 Wi-Fi',
+        lanOnlyHint: '当前不建立公网隧道：手机需与电脑在同一网络，用上面的局域网地址访问。想恢复外网访问，选回 Cloudflared 或自有服务器再点「应用并重启」。',
         serverAddress: '服务器 IP / 域名',
         serverAddressHint: '需已配置免密 SSH，默认使用 root 与 80 端口。',
         switchTunnel: '应用并重启',
@@ -225,7 +228,7 @@ if (!alreadyRegistered()) {
         serverCard: 'Mobile server',
         serverCardHint: 'Use a LAN URL when the phone and this computer share a network.',
         tunnelCard: 'Public channel',
-        tunnelCardHint: 'Cloudflared works out of the box; the own-server relay uses SSH.',
+        tunnelCardHint: 'Cloudflared works out of the box; the own-server relay uses SSH; pick LAN only to keep it off the internet.',
         connectCard: 'Phone access',
         connectHint: 'Scan to open Pocket. The URL carries an access token; do not share it publicly.',
         qrPublicEmpty: 'Public tunnel is offline',
@@ -237,6 +240,9 @@ if (!alreadyRegistered()) {
         cloudflaredDesc: 'Automatic HTTPS host · no server needed',
         ownServer: 'Own server',
         ownServerDesc: 'SSH reverse relay · your public IP',
+        lanOnly: 'LAN only',
+        lanOnlyDesc: 'No public tunnel · local machine or same Wi-Fi',
+        lanOnlyHint: 'No public tunnel right now: the phone must share this network and use the LAN URL above. To restore outside access, pick Cloudflared or Own server and apply again.',
         serverAddress: 'Server IP / hostname',
         serverAddressHint: 'Requires passwordless SSH; root and port 80 are used by default.',
         switchTunnel: 'Apply and restart',
@@ -753,6 +759,7 @@ if (!alreadyRegistered()) {
         if (tunnel.state === 'online') return LANG.tunnelOnline;
         if (tunnel.state === 'starting') return LANG.tunnelStarting;
         if (tunnel.state === 'error') return LANG.tunnelError;
+        if (tunnel.mode === 'off') return LANG.lanOnly;
         return LANG.tunnelOff;
       }
 
@@ -821,7 +828,7 @@ if (!alreadyRegistered()) {
 
         useEffect(() => {
           if (status === undefined) return;
-          setProvider(status.tunnel?.mode === 'ssh' ? 'ssh' : 'cloudflared');
+          setProvider(status.tunnel?.mode === 'ssh' ? 'ssh' : status.tunnel?.mode === 'off' ? 'off' : 'cloudflared');
           setSshHost(typeof status.tunnel?.sshHost === 'string' ? status.tunnel.sshHost : '');
         }, [status?.tunnel?.mode, status?.tunnel?.sshHost]);
 
@@ -1068,14 +1075,17 @@ if (!alreadyRegistered()) {
           ? LANG.cloudflaredShort
           : tunnel.provider === 'ssh'
             ? LANG.ownServer
-            : tunnel.provider ?? '-';
+            : tunnel.mode === 'off'
+              ? LANG.lanOnly
+              : tunnel.provider ?? '-';
         const publicHost = typeof urls.publicUrl === 'string'
           ? urls.publicUrl.replace(/^https?:\/\//u, '').split('/')[0]
-          : tunnelLabel(tunnel);
+          : tunnel.mode === 'off' ? LANG.lanOnlyDesc : tunnelLabel(tunnel);
         const selectedLan = lanOptions.find((option) => option.address === lanSelected);
         const providerOptions = [
           { value: 'cloudflared', label: LANG.cloudflared, description: LANG.cloudflaredDesc },
           { value: 'ssh', label: LANG.ownServer, description: LANG.ownServerDesc },
+          { value: 'off', label: LANG.lanOnly, description: LANG.lanOnlyDesc },
         ];
         const lanPickerOptions = [
           { value: '', label: LANG.lanAuto, description: LANG.lanAutoDesc },
@@ -1111,7 +1121,7 @@ if (!alreadyRegistered()) {
 
         const statsRow = h('div', { className: 'dsh-pk-stats' },
           stat(LANG.serverCard, status.server?.listening ? LANG.online : LANG.offline, `:${String(status.server?.port ?? '-')} · ${status.server?.host ?? '-'}`),
-          stat(LANG.publicEntry, providerName, isOnline ? publicHost : tunnelLabel(tunnel)),
+          stat(LANG.publicEntry, providerName, isOnline ? publicHost : tunnel.mode === 'off' ? LANG.lanOnlyDesc : tunnelLabel(tunnel)),
           stat(LANG.lanIp, selectedLan?.name ?? LANG.lanAuto, selectedLan?.address ?? `${lanOptions.length} ${LANG.lan}`),
         );
 
@@ -1191,15 +1201,18 @@ if (!alreadyRegistered()) {
             }, busy === 'switch-tunnel' ? LANG.switching : LANG.switchTunnel),
           ),
           tunnel.error !== undefined ? h('div', { className: 'dsh-pk-err' }, tunnel.error) : null,
-          h('div', { className: 'dsh-pk-actions' },
-            isOnline || isStarting
-              ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-stop') }, LANG.stop)
-              : h('button', { className: 'dsh-pk-btn primary', disabled: busy !== '', onClick: () => void action('tunnel-start') }, LANG.start),
-            isOnline || tunnel.state === 'error'
-              ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-restart') }, LANG.restart)
-              : null,
-          ),
+          tunnel.mode === 'off'
+            ? null
+            : h('div', { className: 'dsh-pk-actions' },
+              isOnline || isStarting
+                ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-stop') }, LANG.stop)
+                : h('button', { className: 'dsh-pk-btn primary', disabled: busy !== '', onClick: () => void action('tunnel-start') }, LANG.start),
+              isOnline || tunnel.state === 'error'
+                ? h('button', { className: 'dsh-pk-btn', disabled: busy !== '', onClick: () => void action('tunnel-restart') }, LANG.restart)
+                : null,
+            ),
           provider === 'ssh' ? h('div', { className: 'dsh-pk-note' }, LANG.sshHint) : null,
+          provider === 'off' ? h('div', { className: 'dsh-pk-note' }, LANG.lanOnlyHint) : null,
           Array.isArray(tunnel.log) && tunnel.log.length > 0
             ? h('details', { className: 'dsh-pk-details' },
               h('summary', null, LANG.log),

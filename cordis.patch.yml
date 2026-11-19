@@ -12,6 +12,7 @@
         # 是否同时允许局域网访问（绑定 0.0.0.0）。仅本机/隧道可关掉。
         lan: true
         # auto = 依次尝试 cloudflared → localtunnel → localhost.run
+        # off = 仅局域网，不建公网隧道（面板里也能一键切到这个模式）
         tunnel: auto
         # 启动即保持电脑常亮（不熄屏、不休眠）；面板/手机上的开关会覆盖它并持久化。
         keepAwake: false
