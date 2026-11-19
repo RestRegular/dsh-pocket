@@ -35,3 +35,5 @@
         # wecomNotifyQuestions: true
         # 任务完成推送（会话跑完从 running 回到 idle），可单独关掉，默认开：
         # wecomNotifyComplete: true
+        # 自建服务器（ssh / custom）通道是否也推送通知，默认开；关掉保持安静：
+        # wecomNotifySelfHosted: true

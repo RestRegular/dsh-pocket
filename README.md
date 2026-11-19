@@ -203,11 +203,11 @@ sshExposePort: 80
 电脑休眠、切换 Wi-Fi 或拔掉网线再恢复时，隧道进程往往还“活着”，但那条连接已经半死：`trycloudflare.com` 的域名还能解析，请求却打不到本机。Pocket 自己盯着网络，一旦发现断网后恢复就整条重建：
 
 - 探测方式是对 `223.5.5.5`、`1.1.1.1`、`www.baidu.com` 做 TCP 连接，任意一个通就算在线；在线每 15 秒探一次，离线每 5 秒探一次，恢复得更快。
-- 恢复后重建隧道；顺带兜住“隧道进程自己挂了”的情况（状态变成 `error` 时也会重建）。
+- 恢复后自动重连：**先重试当前通道**，失败后**自动依次尝试其余所有通道**（Cloudflared、localtunnel、localhost.run，有配置时还包括自建服务器），谁先拿到公网地址就用谁；顺带兜住“隧道进程自己挂了”的情况（状态变成 `error` 时也会重连）。
 - 30 秒冷却 + 连续失败指数退避（最长 10 分钟），网络抖动不会把隧道反复重启。
 - 面板和手机端都有「立即重建」按钮，等不及自动探测时可以手动触发。
 
-**只有 Cloudflared 会推送通知。** Quick Tunnel 每次重建都会换域名，旧链接直接失效，所以重建成功后把新地址发到企业微信；`ssh` / 自有服务器地址固定，按约定**完全不推送**（面板状态里会标成「按约定跳过」）。
+**重连成功就推送通知和链接。** 不管最后落在哪个通道，只要拿到新的公网地址就往企业微信推一条「Pocket 公网通道已重连」，带可直达的链接（Quick Tunnel 每次换域名，旧链接必失效，新链接尤其重要）。自建服务器（SSH / 自定义）地址固定，默认也推送；若不想要这类通知，在设置里把「自建服务器也推送」（`wecomNotifySelfHosted`）关掉即可保持安静。
 
 配置企业微信有两种方式，任选其一：
 
@@ -234,7 +234,7 @@ wecomToUser: '@all'        # 应用消息模式的接收人
 
 消息里带会话标题、问题/工具摘要，以及一个直接跳到该会话的链接；点开就能允许/拒绝或作答。三类推送各有独立开关，可在桌面面板「消息推送」卡片里随时启用/关闭（`wecomNotifyApprovals` / `wecomNotifyQuestions` / `wecomNotifyComplete`），总开关 `wecomNotify` 仍是前提。任何一类关闭都只是不推送，不影响审批/提问/会话本身在桌面或手机上的正常处理。任务完成只在 `running → idle` 的那一次跳变推一条，冷启动与重复空闲不会刷屏。
 
-> 公网地址的「断网重建」推送仍只对 Cloudflared 生效；审批/提问/任务完成推送与隧道类型无关，任何入口下都能收到。
+> 所有推送（重连成功 / 审批 / 提问 / 任务完成）在任何公网通道下都会发生；只有自建服务器（SSH / 自定义）通道可用 `wecomNotifySelfHosted` 单独关掉，关掉后该通道下所有企业微信通知都保持安静。
 
 状态文件保存访问令牌、创建时间、面板选中的局域网 IP、公网入口和「保持电脑常亮」开关：`$DSH_HOME/pocket/state.json`（默认 `~/.dsh/pocket/state.json`）。端口、隧道地址每次启动重新协商。
 
@@ -335,7 +335,7 @@ wecomToUser: '@all'        # 应用消息模式的接收人
 | `keepAwakeDisplay` | `true` | 常亮时是否同时阻止屏幕关闭；设 `false` 只阻止系统睡眠（Windows/macOS）。 |
 | `surface` | `mobile` | 手机端默认界面。`mobile` 是 Pocket 自带轻量页；`desktop` 直接把桌面 Web GUI 整页反代给手机。面板里的选择优先并持久化。 |
 | `mobileLayout` | `true` | 桌面直通时是否注入窄屏适配样式与抽屉脚本。可在面板「设置 → 窄屏适配」里随时关闭。 |
-| `wecomWebhook` | 无 | 企业微信群机器人 Webhook（或只填 key）。断网恢复重建 Cloudflared 隧道后，把新地址推到这里。 |
+| `wecomWebhook` | 无 | 企业微信群机器人 Webhook（或只填 key）。断网恢复重连成功后，把新链接推到这里。 |
 | `wecomNotify` | `true` | 是否启用推送。设 `false` 关闭；不填 `wecomWebhook` 时等于没配。 |
 | `wecomCorpId` / `wecomSecret` / `wecomAgentId` | 无 | 改用企业应用消息时的凭据；三者齐备才生效，优先于 Webhook。 |
 | `wecomToUser` | `@all` | 应用消息的接收人，多个用 `|` 分隔。 |
@@ -343,6 +343,7 @@ wecomToUser: '@all'        # 应用消息模式的接收人
 | `wecomNotifyApprovals` | `true` | 工具审批请求是否推送到企业微信；设 `false` 关闭这一类。 |
 | `wecomNotifyQuestions` | `true` | 用户提问是否推送到企业微信；设 `false` 关闭这一类。 |
 | `wecomNotifyComplete` | `true` | 任务完成（会话从运行中回到空闲）是否推送到企业微信；设 `false` 关闭这一类。 |
+| `wecomNotifySelfHosted` | `true` | 自建服务器（SSH / 自定义）通道是否也推送通知；设 `false` 后该通道所有通知保持安静。 |
 
 推送配置也可以写成 `notify: { webhook, enabled, withToken, ... }`，两种写法等价。桌面面板与手机端改动后写入 `~/.dsh/pocket/state.json`，并优先于 YAML。
 
@@ -431,7 +432,7 @@ pnpm install   # 拉取 ws，以及 Windows x64 的可选 cloudflared 二进制
 ```
 
 - 宿主：`lib/index.js` 负责配置、生命周期与桌面面板路由；`lib/server.js` 是移动 HTTP/WS 服务；`lib/tunnel.js` 管理隧道子进程；`lib/awake.js` 与 `lib/awake-win.ps1` 负责保持电脑常亮。
-- 断网恢复：`lib/netwatch.js` 用 TCP 探测判断网络状态翻转，`lib/server.js` 的 `#handleReconnect()` 据此重建隧道；`lib/notify.js` 负责企业微信推送（群机器人 Webhook 或企业应用消息）。
+- 断网恢复：`lib/netwatch.js` 用 TCP 探测判断网络状态翻转，`lib/server.js` 的 `#handleReconnect()` 据此重连隧道——先重试当前通道，失败后由 `lib/tunnel.js` 的 `reconnectCandidates()` 依次尝试其余所有通道；`lib/notify.js` 负责企业微信推送（群机器人 Webhook 或企业应用消息），含自建服务器通道开关。
 - 移动页面：`web/`（原生 ESM，无构建）。
 - 桌面面板：`client/client.js`，注册 `sidebar.panellist` 与 `main` 两个 slot。
 
