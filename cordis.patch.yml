@@ -33,3 +33,5 @@
         # 阻塞型交互推送（工具审批 / 用户提问），各自可单独关掉，默认都开：
         # wecomNotifyApprovals: true
         # wecomNotifyQuestions: true
+        # 任务完成推送（会话跑完从 running 回到 idle），可单独关掉，默认开：
+        # wecomNotifyComplete: true

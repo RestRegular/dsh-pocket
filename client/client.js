@@ -131,13 +131,15 @@ if (!alreadyRegistered()) {
         displayRange: '截断长度需在 500–50000 字符之间',
         displayNote: '关闭某类截断后，这类内容会完整发送到手机，可能增加流量和首屏时间。',
         notifyCard: '断网自动恢复',
-        notifyHint: '有工具审批、用户提问时推送到企业微信；断网恢复后也把新公网地址发给你。',
+        notifyHint: '有工具审批、用户提问、任务完成时推送到企业微信；断网恢复后也把新公网地址发给你。',
         notifyEnable: '推送到企业微信',
         notifyEnableDesc: '仅在公网通道是 Cloudflared 时推送；自有服务器不打扰。',
         notifyApprovals: '推送工具审批请求',
         notifyApprovalsDesc: '有工具需要批准时，立即推一条消息到企业微信，点链接直接去处理。',
         notifyQuestions: '推送用户提问',
         notifyQuestionsDesc: 'Agent 提问等待回答时，立即推一条消息到企业微信。',
+        notifyComplete: '推送任务完成',
+        notifyCompleteDesc: '会话跑完（从执行中回到空闲）时推一条消息到企业微信，带会话标题和直达链接。',
         notifyWebhook: '群机器人 Webhook',
         notifyWebhookPlaceholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…',
         notifyWebhookHint: '在群聊 → 群机器人 → 添加机器人里复制地址，也可以只填 key。',
@@ -299,13 +301,15 @@ if (!alreadyRegistered()) {
         displayRange: 'Truncation length must be between 500 and 50000 characters',
         displayNote: 'When a category is not truncated, its content is sent to the phone in full and may increase traffic and first-load time.',
         notifyCard: 'Network recovery',
-        notifyHint: 'Push tool approvals and pending questions to WeCom, plus the new URL after the tunnel rebuilds.',
+        notifyHint: 'Push tool approvals, pending questions and completed tasks to WeCom, plus the new URL after the tunnel rebuilds.',
         notifyEnable: 'Push to WeCom',
         notifyEnableDesc: 'Only pushes for Cloudflared tunnels; self-hosted servers stay silent.',
         notifyApprovals: 'Push tool approvals',
         notifyApprovalsDesc: 'Send a WeCom message the moment a tool needs approval, with a link straight to it.',
         notifyQuestions: 'Push user questions',
         notifyQuestionsDesc: 'Send a WeCom message whenever the agent asks a question that is waiting on you.',
+        notifyComplete: 'Push completed tasks',
+        notifyCompleteDesc: 'Send a WeCom message when a session finishes (goes from running to idle), with its title and a direct link.',
         notifyWebhook: 'Group robot webhook',
         notifyWebhookPlaceholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…',
         notifyWebhookHint: 'Copy it from Group chat → Group robot → Add robot. The bare key works too.',
@@ -832,6 +836,7 @@ if (!alreadyRegistered()) {
             withToken: status.notify.withToken !== false,
             notifyApprovals: status.notify.notifyApprovals !== false,
             notifyQuestions: status.notify.notifyQuestions !== false,
+            notifyComplete: status.notify.notifyComplete !== false,
           });
         }, [status?.notify]);
 
@@ -951,6 +956,7 @@ if (!alreadyRegistered()) {
           withToken: status?.notify?.withToken !== false,
           notifyApprovals: status?.notify?.notifyApprovals !== false,
           notifyQuestions: status?.notify?.notifyQuestions !== false,
+          notifyComplete: status?.notify?.notifyComplete !== false,
         };
         const patchNotify = (key, value) => {
           setNotifyDraft((draft) => ({ ...(draft ?? draftNotify), [key]: value }));
@@ -964,6 +970,7 @@ if (!alreadyRegistered()) {
               withToken: draftNotify.withToken !== false,
               notifyApprovals: draftNotify.notifyApprovals !== false,
               notifyQuestions: draftNotify.notifyQuestions !== false,
+              notifyComplete: draftNotify.notifyComplete !== false,
             },
           });
           if (next?.notify !== undefined) {
@@ -973,6 +980,7 @@ if (!alreadyRegistered()) {
               withToken: next.notify.withToken !== false,
               notifyApprovals: next.notify.notifyApprovals !== false,
               notifyQuestions: next.notify.notifyQuestions !== false,
+              notifyComplete: next.notify.notifyComplete !== false,
             });
             setToast(LANG.notifySaved);
           }
@@ -1389,6 +1397,13 @@ if (!alreadyRegistered()) {
               checked: draftNotify.notifyQuestions !== false,
               disabled: busy !== '' || draftNotify.enabled !== true,
               onChange: (value) => patchNotify('notifyQuestions', value),
+            }),
+            h(DisplayRow, {
+              label: LANG.notifyComplete,
+              description: LANG.notifyCompleteDesc,
+              checked: draftNotify.notifyComplete !== false,
+              disabled: busy !== '' || draftNotify.enabled !== true,
+              onChange: (value) => patchNotify('notifyComplete', value),
             }),
             h(DisplayRow, {
               label: LANG.notifyWithToken,
