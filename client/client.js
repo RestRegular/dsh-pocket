@@ -133,16 +133,24 @@ if (!alreadyRegistered()) {
         displaySave: '保存显示设置',
         displayRange: '截断长度需在 500–50000 字符之间',
         displayNote: '关闭某类截断后，这类内容会完整发送到手机，可能增加流量和首屏时间。',
-        notifyCard: '断网自动恢复',
-        notifyHint: '有工具审批、用户提问、任务完成时推送到企业微信；断网恢复重连成功后也把新链接发给你。',
+        notifyCard: '消息推送',
+        notifyHint: '把工具审批、用户提问和任务完成推送到企业微信，人不在电脑前也不会漏。',
+        notifySectionChannel: '推送通道',
+        notifySectionEvent: '推送哪些事件',
+        notifySectionTask: '任务完成通知',
+        notifySectionLink: '链接与凭据',
+        notifyOn: '推送已开启',
+        notifyOff: '推送未开启',
         notifyEnable: '推送到企业微信',
         notifyEnableDesc: '所有通道都推送；自建服务器可在下面单独关掉。',
         notifyApprovals: '推送工具审批请求',
         notifyApprovalsDesc: '有工具需要批准时，立即推一条消息到企业微信，点链接直接去处理。',
         notifyQuestions: '推送用户提问',
         notifyQuestionsDesc: 'Agent 提问等待回答时，立即推一条消息到企业微信。',
-        notifyComplete: '推送任务完成',
-        notifyCompleteDesc: '会话跑完（从执行中回到空闲）时推一条消息到企业微信，带会话标题和直达链接。',
+        notifyComplete: '主代理任务完成',
+        notifyCompleteDesc: '你直接对话的会话跑完（从执行中回到空闲）时推一条，带会话标题和直达链接。',
+        notifyCompleteSubagent: '子代理任务完成',
+        notifyCompleteSubagentDesc: '子代理（subagent）跑完也推送。一次主任务常并发多个子代理，怕吵就单独关掉这条。',
         notifySelfHosted: '自建服务器也推送',
         notifySelfHostedDesc: '公网通道是自建服务器（SSH / 自定义）时同样推送通知；关掉后自建服务器通道保持安静。',
         notifyWebhook: '群机器人 Webhook',
@@ -160,6 +168,8 @@ if (!alreadyRegistered()) {
         notifyOkAt: '上次推送成功',
         notifyFailAt: '上次推送失败',
         notifyNever: '还没有推送过',
+        reconnectCard: '断网自动恢复',
+        reconnectCardHint: '网络断了又恢复时自动重建公网通道，并把新链接推给你。',
         reconnectNow: '立即重建',
         reconnecting: '正在重建…',
         networkOnline: '网络正常',
@@ -308,16 +318,24 @@ if (!alreadyRegistered()) {
         displaySave: 'Save display settings',
         displayRange: 'Truncation length must be between 500 and 50000 characters',
         displayNote: 'When a category is not truncated, its content is sent to the phone in full and may increase traffic and first-load time.',
-        notifyCard: 'Network recovery',
-        notifyHint: 'Push tool approvals, pending questions and completed tasks to WeCom, plus the new link after a successful reconnect.',
+        notifyCard: 'Push notifications',
+        notifyHint: 'Send tool approvals, pending questions and completed tasks to WeCom so nothing is missed while you are away from the computer.',
+        notifySectionChannel: 'Delivery channel',
+        notifySectionEvent: 'Which events to push',
+        notifySectionTask: 'Task completion',
+        notifySectionLink: 'Links and credentials',
+        notifyOn: 'Pushing',
+        notifyOff: 'Not pushing',
         notifyEnable: 'Push to WeCom',
         notifyEnableDesc: 'Pushes on every channel; self-hosted servers can be silenced below.',
         notifyApprovals: 'Push tool approvals',
         notifyApprovalsDesc: 'Send a WeCom message the moment a tool needs approval, with a link straight to it.',
         notifyQuestions: 'Push user questions',
         notifyQuestionsDesc: 'Send a WeCom message whenever the agent asks a question that is waiting on you.',
-        notifyComplete: 'Push completed tasks',
-        notifyCompleteDesc: 'Send a WeCom message when a session finishes (goes from running to idle), with its title and a direct link.',
+        notifyComplete: 'Main-agent task completion',
+        notifyCompleteDesc: 'Send a WeCom message when the session you talk to finishes (running to idle), with its title and a direct link.',
+        notifyCompleteSubagent: 'Subagent task completion',
+        notifyCompleteSubagentDesc: 'Also push when a subagent finishes. One task often runs several subagents at once — turn this off alone to stay quiet.',
         notifySelfHosted: 'Push on self-hosted too',
         notifySelfHostedDesc: 'Also push notifications when the public channel is a self-hosted server (SSH / custom); turn off to keep that channel silent.',
         notifyWebhook: 'Group robot webhook',
@@ -335,6 +353,8 @@ if (!alreadyRegistered()) {
         notifyOkAt: 'Last push succeeded',
         notifyFailAt: 'Last push failed',
         notifyNever: 'No pushes yet',
+        reconnectCard: 'Network recovery',
+        reconnectCardHint: 'Rebuild the public tunnel automatically after an outage and push the new link to you.',
         reconnectNow: 'Rebuild now',
         reconnecting: 'Rebuilding…',
         networkOnline: 'Network up',
@@ -516,6 +536,9 @@ if (!alreadyRegistered()) {
 .dsh-pk-toggle-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
 .dsh-pk-toggle-label{font-size:12px;font-weight:550;color:var(--dsw-alias-label-primary)}
 .dsh-pk-toggle-desc{font-size:10.5px;color:var(--dsw-alias-label-caption)}
+.dsh-pk-group{display:flex;flex-direction:column;gap:2px;margin-top:14px}
+.dsh-pk-group-title{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:650;letter-spacing:.04em;color:var(--dsw-alias-label-tertiary);padding:0 2px 4px}
+.dsh-pk-group-title::after{content:'';flex:1;height:1px;background:var(--dsw-alias-border-l1)}
 .dsh-pk-switch{position:relative;flex:none;width:36px;height:20px;padding:0;border:1px solid color-mix(in srgb,var(--dsw-alias-label-caption) 24%,transparent);border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-caption) 28%,transparent);cursor:pointer;transition:background .15s ease,border-color .15s ease}
 .dsh-pk-switch:hover:not(:disabled){border-color:color-mix(in srgb,var(--dsw-alias-label-caption) 42%,transparent)}
 .dsh-pk-switch:focus-visible{outline:2px solid var(--dsw-alias-button-primary-fill);outline-offset:2px}
@@ -969,6 +992,7 @@ if (!alreadyRegistered()) {
           notifyApprovals: status?.notify?.notifyApprovals !== false,
           notifyQuestions: status?.notify?.notifyQuestions !== false,
           notifyComplete: status?.notify?.notifyComplete !== false,
+          notifyCompleteSubagent: status?.notify?.notifyCompleteSubagent !== false,
           notifySelfHosted: status?.notify?.notifySelfHosted !== false,
         };
         const patchNotify = (key, value) => {
@@ -984,6 +1008,7 @@ if (!alreadyRegistered()) {
               notifyApprovals: draftNotify.notifyApprovals !== false,
               notifyQuestions: draftNotify.notifyQuestions !== false,
               notifyComplete: draftNotify.notifyComplete !== false,
+              notifyCompleteSubagent: draftNotify.notifyCompleteSubagent !== false,
               notifySelfHosted: draftNotify.notifySelfHosted !== false,
             },
           });
@@ -995,6 +1020,7 @@ if (!alreadyRegistered()) {
               notifyApprovals: next.notify.notifyApprovals !== false,
               notifyQuestions: next.notify.notifyQuestions !== false,
               notifyComplete: next.notify.notifyComplete !== false,
+              notifyCompleteSubagent: next.notify.notifyCompleteSubagent !== false,
               notifySelfHosted: next.notify.notifySelfHosted !== false,
             });
             setToast(LANG.notifySaved);
@@ -1380,6 +1406,12 @@ if (!alreadyRegistered()) {
           ? formatClock(network.lastAt)
           : LANG.reconnectNever;
 
+        // 推送设置：按「通道 / 事件 / 任务完成 / 链接与凭据」分组，单独一张卡片。
+        const notifyGroup = (title, children) => h('div', { className: 'dsh-pk-group' },
+          h('div', { className: 'dsh-pk-group-title' }, title),
+          children,
+        );
+
         const notifyCard = h('section', { className: 'dsh-pk-card' },
           h('div', { className: 'dsh-pk-card-top' },
             h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'globe', size: 16 })),
@@ -1387,18 +1419,14 @@ if (!alreadyRegistered()) {
               h('span', { className: 'dsh-pk-card-title' }, LANG.notifyCard),
               h('span', { className: 'dsh-pk-card-sub' }, LANG.notifyHint),
             ),
-            h(StatusPill, { tone: networkTone, label: networkLabel }),
+            h(StatusPill, {
+              tone: notifyActive ? 'on' : '',
+              label: notifyActive ? LANG.notifyOn : LANG.notifyOff,
+            }),
           ),
-          h('dl', { className: 'dsh-pk-kv' },
-            h('dt', null, LANG.reconnectAttempts), h('dd', null, String(network.attempts ?? 0)),
-            h('dt', null, LANG.reconnectLast), h('dd', null, lastReconnect),
-            h('dt', null, LANG.publicEntry), h('dd', null, pushStateText),
-          ),
-          typeof network.lastError === 'string' && network.lastError.length > 0
-            ? h('div', { className: 'dsh-pk-err' }, `${LANG.reconnectFailed}：${network.lastError}`)
-            : null,
-          h('div', { className: 'dsh-pk-field' },
+          notifyGroup(LANG.notifySectionChannel, [
             h(DisplayRow, {
+              key: 'enabled',
               label: LANG.notifyEnable,
               description: LANG.notifyEnableDesc,
               checked: draftNotify.enabled === true,
@@ -1406,6 +1434,17 @@ if (!alreadyRegistered()) {
               onChange: (value) => patchNotify('enabled', value),
             }),
             h(DisplayRow, {
+              key: 'selfHosted',
+              label: LANG.notifySelfHosted,
+              description: LANG.notifySelfHostedDesc,
+              checked: draftNotify.notifySelfHosted !== false,
+              disabled: busy !== '' || draftNotify.enabled !== true,
+              onChange: (value) => patchNotify('notifySelfHosted', value),
+            }),
+          ]),
+          notifyGroup(LANG.notifySectionEvent, [
+            h(DisplayRow, {
+              key: 'approvals',
               label: LANG.notifyApprovals,
               description: LANG.notifyApprovalsDesc,
               checked: draftNotify.notifyApprovals !== false,
@@ -1413,13 +1452,17 @@ if (!alreadyRegistered()) {
               onChange: (value) => patchNotify('notifyApprovals', value),
             }),
             h(DisplayRow, {
+              key: 'questions',
               label: LANG.notifyQuestions,
               description: LANG.notifyQuestionsDesc,
               checked: draftNotify.notifyQuestions !== false,
               disabled: busy !== '' || draftNotify.enabled !== true,
               onChange: (value) => patchNotify('notifyQuestions', value),
             }),
+          ]),
+          notifyGroup(LANG.notifySectionTask, [
             h(DisplayRow, {
+              key: 'complete',
               label: LANG.notifyComplete,
               description: LANG.notifyCompleteDesc,
               checked: draftNotify.notifyComplete !== false,
@@ -1427,35 +1470,39 @@ if (!alreadyRegistered()) {
               onChange: (value) => patchNotify('notifyComplete', value),
             }),
             h(DisplayRow, {
-              label: LANG.notifySelfHosted,
-              description: LANG.notifySelfHostedDesc,
-              checked: draftNotify.notifySelfHosted !== false,
+              key: 'completeSubagent',
+              label: LANG.notifyCompleteSubagent,
+              description: LANG.notifyCompleteSubagentDesc,
+              checked: draftNotify.notifyCompleteSubagent !== false,
               disabled: busy !== '' || draftNotify.enabled !== true,
-              onChange: (value) => patchNotify('notifySelfHosted', value),
+              onChange: (value) => patchNotify('notifyCompleteSubagent', value),
             }),
+          ]),
+          notifyGroup(LANG.notifySectionLink, [
             h(DisplayRow, {
+              key: 'withToken',
               label: LANG.notifyWithToken,
               description: LANG.notifyWithTokenDesc,
               checked: draftNotify.withToken !== false,
               disabled: busy !== '',
               onChange: (value) => patchNotify('withToken', value),
             }),
-          ),
-          h('div', { className: 'dsh-pk-field' },
-            h('span', { className: 'dsh-pk-field-label' }, LANG.notifyWebhook),
-            h('div', { className: 'dsh-pk-input-shell' },
-              h(LineIcon, { name: 'plug', size: 15 }),
-              h('input', {
-                className: 'dsh-pk-input',
-                type: 'password',
-                value: draftNotify.webhook,
-                placeholder: LANG.notifyWebhookPlaceholder,
-                disabled: busy !== '',
-                onChange: (event) => patchNotify('webhook', event.target.value),
-              }),
+            h('div', { className: 'dsh-pk-field', key: 'webhook' },
+              h('span', { className: 'dsh-pk-field-label' }, LANG.notifyWebhook),
+              h('div', { className: 'dsh-pk-input-shell' },
+                h(LineIcon, { name: 'plug', size: 15 }),
+                h('input', {
+                  className: 'dsh-pk-input',
+                  type: 'password',
+                  value: draftNotify.webhook,
+                  placeholder: LANG.notifyWebhookPlaceholder,
+                  disabled: busy !== '',
+                  onChange: (event) => patchNotify('webhook', event.target.value),
+                }),
+              ),
+              h('span', { className: 'dsh-pk-hint' }, LANG.notifyWebhookHint),
             ),
-            h('span', { className: 'dsh-pk-hint' }, LANG.notifyWebhookHint),
-          ),
+          ]),
           h('div', { className: 'dsh-pk-actions' },
             h('button', {
               className: 'dsh-pk-btn primary',
@@ -1467,6 +1514,28 @@ if (!alreadyRegistered()) {
               disabled: busy !== '' || notifyActive !== true,
               onClick: () => void testNotify(),
             }, busy === 'test-notify' ? LANG.notifyTesting : LANG.notifyTest),
+          ),
+          h('div', { className: 'dsh-pk-note' }, pushStateText),
+        );
+
+        // 断网自动恢复：只留网络状态与「立即重建」，推送开关已移到上面的消息推送卡片。
+        const reconnectCard = h('section', { className: 'dsh-pk-card' },
+          h('div', { className: 'dsh-pk-card-top' },
+            h('span', { className: 'dsh-pk-card-icon' }, h(LineIcon, { name: 'bolt', size: 16 })),
+            h('div', { className: 'dsh-pk-card-heading' },
+              h('span', { className: 'dsh-pk-card-title' }, LANG.reconnectCard),
+              h('span', { className: 'dsh-pk-card-sub' }, LANG.reconnectCardHint),
+            ),
+            h(StatusPill, { tone: networkTone, label: networkLabel }),
+          ),
+          h('dl', { className: 'dsh-pk-kv' },
+            h('dt', null, LANG.reconnectAttempts), h('dd', null, String(network.attempts ?? 0)),
+            h('dt', null, LANG.reconnectLast), h('dd', null, lastReconnect),
+          ),
+          typeof network.lastError === 'string' && network.lastError.length > 0
+            ? h('div', { className: 'dsh-pk-err' }, `${LANG.reconnectFailed}：${network.lastError}`)
+            : null,
+          h('div', { className: 'dsh-pk-actions' },
             h('button', {
               className: 'dsh-pk-btn',
               disabled: busy !== '' || tunnel.state === 'off',
@@ -1572,6 +1641,7 @@ if (!alreadyRegistered()) {
                 surfaceCard,
                 surfaceValue === 'mobile' ? displayCard : narrowCard,
                 notifyCard,
+                reconnectCard,
                 restartCard,
                 h('div', { className: 'dsh-pk-settings-note' },
                   surfaceValue === 'mobile'
