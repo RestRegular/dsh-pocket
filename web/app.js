@@ -55,6 +55,36 @@ async function api(path, options = {}) {
   return payload;
 }
 
+/**
+ * 读取会话列表。带 `If-None-Match`：内容没变时服务端回 304，这里返回 null，
+ * 调用方据此跳过整块重渲染。已归档会话默认不下发，展开「已归档」时才带
+ * `archived=1` 多拉一次（这类行通常占载荷四成以上，平时根本看不见）。
+ * @returns {Promise<any | null>} 载荷；304 时返回 null
+ */
+async function fetchSessionList() {
+  const path = state.showArchived ? '/api/sessions?archived=1' : '/api/sessions';
+  const headers = {
+    Accept: 'application/json',
+    ...(token.length > 0 ? { 'X-Pocket-Token': token } : {}),
+    ...(state.listEtag === undefined ? {} : { 'If-None-Match': state.listEtag }),
+  };
+  const response = await fetch(path, { cache: 'no-store', headers });
+  if (response.status === 401) {
+    showUnlock();
+    throw new Error('访问令牌无效或已轮换');
+  }
+  if (response.status === 304) return null;
+  const payload = await response.json().catch(() => ({ ok: false, error: `HTTP ${response.status}` }));
+  if (!response.ok || payload.ok === false) {
+    const error = new Error(payload.error ?? `HTTP ${response.status}`);
+    if (typeof payload.code === 'string') error.code = payload.code;
+    throw error;
+  }
+  const etag = response.headers.get('ETag');
+  state.listEtag = etag === null ? undefined : etag;
+  return payload;
+}
+
 /* -------------------------------------------------------------------------- */
 /* 通用工具                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -556,6 +586,8 @@ const state = {
   filter: '',
   connected: true,
   listTimer: undefined,
+  /** 上一次列表响应的 ETag；带回去后内容没变就只收一个 304。 */
+  listEtag: undefined,
   current: undefined,
   pendingTexts: [],
   balance: undefined,
@@ -678,7 +710,10 @@ async function loadSessions(options = {}) {
     app.innerHTML = '<div class="boot"><div class="boot-logo"></div><div class="boot-text">正在读取会话…</div></div>';
   }
   try {
-    const payload = await api('/api/sessions');
+    // 首屏一定要整份：清掉校验器，别拿到一个 304 却啥也没有。
+    state.listEtag = undefined;
+    const payload = await fetchSessionList();
+    if (payload === null) throw new Error('列表加载失败：服务端返回空响应');
     applySessionPayload(payload);
     state.connected = true;
     renderShell();
@@ -707,9 +742,12 @@ function bindListEvents() {
   document.querySelector('#archived-toggle')?.addEventListener('click', () => {
     state.showArchived = !state.showArchived;
     localStorage.setItem('dsh_pocket_show_archived', state.showArchived ? '1' : '0');
+    // 归档行是按需下发的：模式一变，校验器和已有数据都要跟着换。
+    state.listEtag = undefined;
     renderShell();
     bindListEvents();
     renderSessionList();
+    void refreshSessionsQuietly();
   });
   document.querySelector('#balance-card')?.addEventListener('click', () => {
     const card = document.querySelector('#balance-card');
@@ -933,9 +971,11 @@ async function watchRestart() {
 
 async function refreshSessionsQuietly() {
   try {
-    const payload = await api('/api/sessions');
-    applySessionPayload(payload);
+    const payload = await fetchSessionList();
     state.connected = true;
+    // 304：内容没变，不用重写整块列表 DOM。
+    if (payload === null) return;
+    applySessionPayload(payload);
     if (state.view === 'list') {
       renderSessionList();
       updateAwakeButton();
@@ -1365,7 +1405,7 @@ function renderSessionList() {
 
   const totalSessions = groups.reduce((sum, group) => sum + group.sessions.length, 0);
   if (groups.length === 0 || (filter.length > 0 && totalSessions === 0)) {
-    const empty = state.sessions.length === 0 && state.archived.length === 0;
+    const empty = state.sessions.length === 0 && state.archived.length === 0 && (state.counts?.total ?? 0) === 0;
     container.innerHTML = `<div class="empty"><div class="big">${empty ? '🫧' : '🔍'}</div><p>${empty ? '还没有会话。' : '没有匹配的会话。'}</p></div>`;
     return;
   }
@@ -2754,9 +2794,11 @@ function openDisplaySettings() {
         /* private mode */
       }
       if (state.view === 'list') {
+        state.listEtag = undefined;
         renderShell();
         bindListEvents();
         renderSessionList();
+        void refreshSessionsQuietly();
       }
     }
     if (nextDisplay !== undefined) {
