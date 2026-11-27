@@ -42,6 +42,7 @@
 - [桌面 Pocket 面板](#桌面-pocket-面板)
 - [安全模型](#安全模型)
 - [配置](#配置)
+- [随包技能](#随包技能)
 - [HTTP 接口](#http-接口)
 - [已知限制](#已知限制)
 - [开发](#开发)
@@ -353,6 +354,10 @@ wecomToUser: '@all'        # 应用消息模式的接收人
 | `wecomNotifySelfHosted` | `true` | 自建服务器（SSH / 自定义）通道是否也推送通知；设 `false` 后该通道所有通知保持安静。 |
 
 推送配置也可以写成 `notify: { webhook, enabled, withToken, ... }`，两种写法等价。桌面面板与手机端改动后写入 `~/.dsh/pocket/state.json`，并优先于 YAML。
+
+## 随包技能
+
+本插件随包分发一条技能 `dsh-web-url`，用于指导 Agent 快速、规范地获取正在运行的 DSH Web GUI URL（`DSH_WEB_URL` 环境变量 / 会话上下文），并区分它与 `pocket_share` 返回的 Pocket 手机端地址，方便其它 Agent 开发插件时在浏览器里调试。技能位于 `skills/dsh-web-url/`，由宿主侧以 bundled provider 注册（rank 600，项目/用户同名技能可覆盖）；无需手动安装，装了本插件即可用。
 
 ## HTTP 接口
 
