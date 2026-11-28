@@ -2277,6 +2277,12 @@ function openChat(id) {
     transient: undefined,
     running: false,
     hasMore: false,
+    // 正在向上翻页（自动加载更早的历史）；同时只允许一个请求在途。
+    loadingOlder: false,
+    // 上一次翻页失败且还没重试过：这时不再自动重试，改为把按钮露出来给用户点。
+    olderError: false,
+    // 触摸开始时的 Y 坐标，用来判断“在顶部继续往下拉”的手势。
+    touchY: undefined,
     ready: false,
     snapshotLoading: false,
     nearBottom: true,
@@ -2405,8 +2411,27 @@ function renderChatShell() {
   });
   const scroll = document.querySelector('#chat-scroll');
   scroll.addEventListener('pointerdown', () => markUserScrolling(), { passive: true });
-  scroll.addEventListener('touchstart', () => markUserScrolling(), { passive: true });
+  scroll.addEventListener('touchstart', (event) => {
+    const current = state.current;
+    const touch = event.touches?.[0];
+    if (current !== undefined) current.touchY = touch === undefined ? undefined : touch.clientY;
+    markUserScrolling();
+  }, { passive: true });
   scroll.addEventListener('touchmove', () => markUserScrolling(), { passive: true });
+  // 已经在最顶部还继续往下拉时吃掉手势：否则浏览器会当成下拉刷新，整页重载后
+  // 刚翻出来的历史全丢。这里必须是 passive: false 才能 preventDefault。
+  scroll.addEventListener('touchmove', (event) => {
+    const current = state.current;
+    if (current === undefined || current.touchY === undefined) return;
+    if (scroll.scrollTop > 0) return;
+    const touch = event.touches?.[0];
+    if (touch === undefined) return;
+    if (touch.clientY > current.touchY + 4) event.preventDefault();
+  }, { passive: false });
+  scroll.addEventListener('touchend', () => {
+    const current = state.current;
+    if (current !== undefined) current.touchY = undefined;
+  }, { passive: true });
   scroll.addEventListener('wheel', () => markUserScrolling(), { passive: true });
   scroll.addEventListener('scroll', () => handleChatScroll());
   document.querySelector('#scroll-bottom').addEventListener('click', () => jumpToBottom());
@@ -3582,6 +3607,8 @@ function handleChatScroll() {
   current.nearBottom = distance < 140;
   if (current.nearBottom) current.holdFollow = false;
   syncScrollButton();
+  // 滚到顶部附近就自动补更早的历史，不用再手动点。
+  if (scroll.scrollTop <= OLDER_TRIGGER_PX) maybeLoadOlder();
   markUserScrolling();
 }
 
@@ -3840,6 +3867,8 @@ function endSnapshot() {
   renderMessages();
   renderTransient();
   scrollToBottom(true);
+  // 首屏历史没铺满一屏时，进来就自动往前补，别让用户对着空白往上拖。
+  maybeLoadOlder();
 }
 
 function applySnapshot(frame) {
@@ -3862,6 +3891,8 @@ function applySnapshot(frame) {
   renderMessages();
   renderTransient();
   scrollToBottom(true);
+  // 首屏历史没铺满一屏时，进来就自动往前补。
+  maybeLoadOlder();
 }
 
 function applyEvent(event, current, options = {}) {
@@ -4019,7 +4050,9 @@ function scheduleTransientRender() {
 function renderMessages(options = {}) {
   const current = state.current;
   if (current === undefined) return;
-  if (current.scrolling === true) {
+  // 补历史（preserveGap）必须当场渲染：它的滚动补偿要在同一拍完成，
+  // 一旦被推迟到用户停手之后再做，视口就会先跳一下再被拉回。
+  if (current.scrolling === true && options.preserveGap !== true) {
     current.pendingMessages = true;
     current.pendingRenderOptions = options;
     return;
@@ -4033,9 +4066,11 @@ function renderMessages(options = {}) {
   const previousTop = scroll?.scrollTop ?? 0;
 
   const fragment = document.createDocumentFragment();
-  if (current.hasMore && current.messages.length > 0) {
-    const more = el('button', 'loadmore', '加载更早的消息');
-    more.addEventListener('click', () => void loadOlder(more));
+  // 往上翻页是全自动的：顶部平时不占位置，只有正在加载或上次失败时才显示一行提示。
+  if (current.hasMore && current.messages.length > 0 && (current.loadingOlder === true || current.olderError === true)) {
+    const more = el('button', 'loadmore', current.loadingOlder === true ? '正在加载更早的消息…' : '加载更早的消息');
+    more.disabled = current.loadingOlder === true;
+    more.addEventListener('click', () => void loadOlder({ userInitiated: true }));
     fragment.appendChild(more);
   }
 
@@ -4362,28 +4397,75 @@ function renderTransientInto(slot) {
 /* 历史翻页                                                                    */
 /* -------------------------------------------------------------------------- */
 
-async function loadOlder(button) {
+/** 距顶部多少像素以内就开始自动补更早的历史。 */
+const OLDER_TRIGGER_PX = 320;
+/** 一次连续补页最多补几页，避免历史极长时把手机内存和请求量拉爆。 */
+const OLDER_MAX_CHAIN = 6;
+
+/**
+ * 判断现在该不该向上补一页历史，并在需要时发起请求。
+ * 由滚动事件和首屏渲染后调用，重复调用安全。
+ * @param {{ userInitiated?: boolean }} [options] 用户点按钮触发时为 true，此时允许在失败后重试
+ */
+function maybeLoadOlder(options = {}) {
+  const current = state.current;
+  if (current === undefined || current.ready !== true) return;
+  if (current.hasMore !== true || current.loadingOlder === true) return;
+  if (current.minSeq === undefined) return;
+  // 上次失败后不自动重试（否则滚动会反复打接口），只留按钮给用户点。
+  if (current.olderError === true && options.userInitiated !== true) return;
+  void loadOlder(options);
+}
+
+/**
+ * 读一页更早的历史，追加到消息列表顶部并保持当前阅读位置。
+ * 一页不够一屏时继续补下一页，直到铺满或没有更多。
+ * @param {{ userInitiated?: boolean, depth?: number }} [options]
+ */
+async function loadOlder(options = {}) {
   const current = state.current;
   if (current === undefined || current.minSeq === undefined) return;
-  button.disabled = true;
-  button.textContent = '加载中…';
+  if (current.loadingOlder === true) return;
+  const depth = options.depth ?? 0;
+  const scroll = document.querySelector('#chat-scroll');
+  current.loadingOlder = true;
+  current.olderError = false;
+  // 只有用户亲手点按钮时才先画一次“正在加载”，自动补页不重复重绘整列表。
+  if (options.userInitiated === true) renderMessages({ preserveGap: true });
   try {
     const through = Math.max(0, current.minSeq - 1);
     const payload = await api(`/api/sessions/${encodeURIComponent(current.id)}/page?throughSeq=${through}&beforeSeq=${current.minSeq}&maxMessages=50`);
+    if (state.current !== current) return;
     const records = payload.records ?? [];
+    let consumed = 0;
     for (const record of records) {
       if (record?.type !== 'event') continue;
       const event = record.event;
       if (typeof event?.seq === 'number' && current.seen.has(event.seq)) continue;
       applyEvent(event, current, { historical: true });
+      // 只有带 seq 的事件才会推进 minSeq；没有它就没法继续往前翻页。
+      if (typeof event?.seq === 'number') consumed += 1;
     }
-    current.hasMore = payload.hasMore === true;
+    // 一页里没有任何新事件说明服务端 hasMore 和游标对不上，收手别再循环。
+    current.hasMore = consumed > 0 && payload.hasMore === true;
     // applyEvent 已把旧消息 push 到尾部；按 seq 重排即可恢复时间顺序。
     current.messages.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+    current.loadingOlder = false;
     renderMessages({ preserveGap: true });
+    // 补完还在顶部（历史没铺满一屏）就接着补，最多连续 OLDER_MAX_CHAIN 页。
+    if (
+      current.hasMore === true &&
+      depth < OLDER_MAX_CHAIN &&
+      scroll !== null &&
+      (scroll.scrollTop <= OLDER_TRIGGER_PX || scroll.scrollHeight <= scroll.clientHeight + 4)
+    ) {
+      void loadOlder({ depth: depth + 1 });
+    }
   } catch (error) {
-    button.disabled = false;
-    button.textContent = '加载更早的消息';
+    if (state.current !== current) return;
+    current.loadingOlder = false;
+    current.olderError = true;
+    renderMessages({ preserveGap: true });
     toast(error.message ?? String(error));
   }
 }
